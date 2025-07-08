@@ -138,12 +138,13 @@ init_db()
 MENU = st.("Menu", ["Transaksi", "Data Barang", "Riwayat"])
 
 # === Import stok awal dari Excel ==========================================
-st.("🗂️ Import Stok dari Excel")
-excel_file = st.(
+# === Import stok awal dari Excel ==========================================
+st.sidebar.header("🗂️ Import Stok dari Excel")
+excel_file = st.sidebar.file_uploader(
     "Pilih file .xlsx / .xls", type=["xlsx", "xls"]
 )
 
-if excel_file and st.("🚀 Import ke Database"):
+if excel_file and st.sidebar.button("🚀 Import ke Database"):
     try:
         import pandas as pd
         from io import BytesIO
@@ -153,7 +154,7 @@ if excel_file and st.("🚀 Import ke Database"):
         # ↳ sesuaikan header kolom jika berbeda
         required = {"material_id", "name", "brand", "category", "stock"}
         if not required.issubset({c.lower() for c in df_xl.columns}):
-            st.(
+            st.sidebar.error(
                 f"Header Excel harus memuat kolom: {', '.join(required)}"
             )
         else:
@@ -165,11 +166,11 @@ if excel_file and st.("🚀 Import ke Database"):
                     str(row["category"]).strip(),
                     int(row["stock"]),
                 )
-            st.(f"Berhasil import {len(df_xl)} baris! ✅")
+            st.sidebar.success(f"Berhasil import {len(df_xl)} baris! ✅")
             st.rerun()  # refresh tampilan tabel
     except Exception as e:
-        st.(f"Gagal import: {e}")
-# ==========================================================================
+        st.sidebar.error(f"Gagal import: {e}")
+      
 # ---------- Transaksi ----------
 if MENU == "Transaksi":
     st.header("🛒 Transaksi Barang Masuk/Keluar")
