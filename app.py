@@ -1,282 +1,201 @@
+# streamlit_inventory_app.py
+"""
+Streamlit implementation of "Stok ATK Kantor" inspired by the Next.js demo
+repo https://github.com/sabenih726/Stok-ATK-Kantor (simple sales / inventory
+app).  Re‑creates the same flow:
+  • Barang masuk / keluar via quick search
+  • Tabel stok + status warna
+  • Tambah / edit / hapus material
+  • Riwayat transaksi & export CSV
+
+Dependencies
+------------
+    pip install streamlit pandas
+"""
 from __future__ import annotations
 
-import warnings
-from datetime import date, datetime
-from typing import Optional
+import os
+import sqlite3
+from datetime import datetime, date
+from typing import List
 
 import pandas as pd
-import plotly.express as px
-import sqlite3
 import streamlit as st
 
-# ---------------- SQLite setup ----------------
-warnings.filterwarnings("ignore", category=DeprecationWarning, module="sqlite3")
+DB = "inventory.db"
 
-def setup_sqlite_adapters():
-    sqlite3.register_adapter(date, lambda x: x.isoformat())
-    sqlite3.register_adapter(datetime, lambda x: x.isoformat())
-    sqlite3.register_converter("date", lambda x: datetime.fromisoformat(x.decode()).date())
-    sqlite3.register_converter("datetime", lambda x: datetime.fromisoformat(x.decode()))
+# ------------------ DB helpers ------------------
 
-setup_sqlite_adapters()
-
-# Enable foreign‑key constraints
-sqlite3.connect("stok_atk.db").execute("PRAGMA foreign_keys = ON").close()
-
-# ---------------- Database helpers ----------------
-DB_PATH = "stok_atk.db"
-
-def get_connection() -> sqlite3.Connection:
-    return sqlite3.connect(DB_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
+def get_conn() -> sqlite3.Connection:
+    return sqlite3.connect(DB, detect_types=sqlite3.PARSE_DECLTYPES, check_same_thread=False)
 
 
-def init_database():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS barang (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            kode_barang TEXT UNIQUE NOT NULL,
-            nama_barang TEXT NOT NULL,
-            kategori TEXT NOT NULL,
-            satuan TEXT NOT NULL,
-            stok_minimum INTEGER NOT NULL,
-            stok_saat_ini INTEGER NOT NULL,
-            harga_satuan REAL NOT NULL,
-            lokasi_penyimpanan TEXT,
-            tanggal_input DATE NOT NULL,
-            keterangan TEXT
+def init_db() -> None:
+    """Create tables if not exist."""
+    with get_conn() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                material_id TEXT UNIQUE,
+                name TEXT,
+                brand TEXT,
+                category TEXT,
+                stock INTEGER
+            )
+            """
         )
-    """
-    )
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS transaksi (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            kode_barang TEXT NOT NULL,
-            jenis_transaksi TEXT NOT NULL,
-            jumlah INTEGER NOT NULL,
-            tanggal_transaksi DATE NOT NULL,
-            keterangan TEXT,
-            penanggung_jawab TEXT,
-            FOREIGN KEY (kode_barang) REFERENCES barang (kode_barang) ON DELETE CASCADE
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id INTEGER,
+                qty INTEGER,
+                action TEXT,
+                tdate DATE,
+                FOREIGN KEY(item_id) REFERENCES items(id)
+            )
+            """
         )
-    """
-    )
-    conn.commit()
-    conn.close()
-
-# CRUD utilities (unchanged except delete_barang) ----------------
-
-def get_all_barang() -> pd.DataFrame:
-    with get_connection() as conn:
-        return pd.read_sql("SELECT * FROM barang ORDER BY nama_barang", conn)
+        conn.commit()
 
 
-def get_barang_by_kode(kode: str) -> Optional[tuple]:
-    with get_connection() as conn:
+# ------------- CRUD operations -------------
+
+def fetch_items(search: str = "") -> pd.DataFrame:
+    with get_conn() as conn:
+        if search:
+            return pd.read_sql(
+                "SELECT * FROM items WHERE name LIKE ? OR brand LIKE ? ORDER BY name",
+                conn,
+                params=(f"%{search}%", f"%{search}%"),
+            )
+        return pd.read_sql("SELECT * FROM items ORDER BY name", conn)
+
+
+def upsert_item(material_id: str, name: str, brand: str, category: str, stock: int):
+    with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT * FROM barang WHERE kode_barang = ?", (kode,))
-        return cur.fetchone()
-
-
-def insert_barang(data: tuple) -> bool:
-    with get_connection() as conn:
-        try:
-            conn.execute(
-                """
-                INSERT INTO barang (kode_barang,nama_barang,kategori,satuan,stok_minimum,
-                                    stok_saat_ini,harga_satuan,lokasi_penyimpanan,
-                                    tanggal_input,keterangan)
-                VALUES (?,?,?,?,?,?,?,?,?,?)
-            """,
-                data,
+        cur.execute("SELECT id FROM items WHERE material_id = ?", (material_id,))
+        row = cur.fetchone()
+        if row:
+            cur.execute(
+                "UPDATE items SET name=?, brand=?, category=?, stock=? WHERE material_id=?",
+                (name, brand, category, stock, material_id),
             )
-            conn.commit()
-            return True
-        except sqlite3.IntegrityError:
-            st.error("Kode barang sudah ada!")
-            return False
-
-
-def update_barang(kode: str, data: tuple) -> bool:
-    with get_connection() as conn:
-        try:
-            conn.execute(
-                """
-                UPDATE barang SET nama_barang=?, kategori=?, satuan=?, stok_minimum=?,
-                                   stok_saat_ini=?, harga_satuan=?, lokasi_penyimpanan=?,
-                                   keterangan=? WHERE kode_barang=?
-            """,
-                (*data, kode),
+        else:
+            cur.execute(
+                "INSERT INTO items (material_id,name,brand,category,stock) VALUES (?,?,?,?,?)",
+                (material_id, name, brand, category, stock),
             )
-            conn.commit()
-            return True
-        except Exception as e:
-            st.error(f"Update gagal: {e}")
+        conn.commit()
+
+
+def delete_item(material_id: str):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM transactions WHERE item_id = (SELECT id FROM items WHERE material_id=?)", (material_id,))
+        conn.execute("DELETE FROM items WHERE material_id = ?", (material_id,))
+        conn.commit()
+
+
+def add_transaction(material_id: str, qty: int, action: str):
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT id, stock FROM items WHERE material_id = ?", (material_id,))
+        row = cur.fetchone()
+        if not row:
+            st.error("Barang tidak ditemukan.")
             return False
-
-
-def delete_barang(kode: str) -> bool:
-    """Hapus barang + transaksi; menggunakan ON DELETE CASCADE di schema."""
-    with get_connection() as conn:
-        try:
-            conn.execute("DELETE FROM barang WHERE kode_barang = ?", (kode,))
-            conn.commit()
-            return True
-        except Exception as e:
-            st.error(f"Gagal menghapus: {e}")
+        item_id, curr_stock = row
+        new_stock = curr_stock + qty if action == "masuk" else curr_stock - qty
+        if new_stock < 0:
+            st.error("Stok tidak mencukupi!")
             return False
-
-# (insert_transaksi, update_stok_barang, get_transaksi, get_stok_menipis) –
-#       tetap sama seperti versi pengguna, tidak di‑paste ulang di sini demi ringkas.
-#       ↳ Pastikan Anda menyalin fungsi lengkap kalau file ini berdiri sendiri.
-
-# ---------------- Streamlit UI ----------------
-st.set_page_config("Manajemen Stok ATK", "📝", layout="wide", initial_sidebar_state="expanded")
-
-init_database()
-
-KATEGORI_LIST = [
-    "Alat Tulis",
-    "Kertas",
-    "Elektronik",
-    "Peralatan",
-    "Lainnya",
-]
-SATUAN_LIST = ["pcs", "dus", "rim", "pak", "lusin", "kg", "liter"]
+        cur.execute(
+            "INSERT INTO transactions (item_id, qty, action, tdate) VALUES (?,?,?,?)",
+            (item_id, qty, action, date.today()),
+        )
+        cur.execute("UPDATE items SET stock = ? WHERE id = ?", (new_stock, item_id))
+        conn.commit()
+        return True
 
 
-def main():
-    st.title("🏢 Manajemen Stok ATK Kantor")
-    st.sidebar.selectbox(
-        "Pilih Menu:",
-        ["Dashboard", "Data Barang", "Transaksi", "Laporan", "Pengaturan"],
-        key="menu",
-    )
-
-    menu = st.session_state.menu
-    if menu == "Data Barang":
-        show_data_barang()
-    # Dashboard, Transaksi, Laporan, Pengaturan → gunakan fungsi lama.
+def fetch_transactions(limit: int | None = None) -> pd.DataFrame:
+    with get_conn() as conn:
+        query = """SELECT t.id, i.material_id, i.name, i.brand, t.qty, t.action, t.tdate
+                   FROM transactions t JOIN items i ON t.item_id = i.id
+                   ORDER BY t.id DESC"""
+        if limit:
+            query += f" LIMIT {limit}"
+        return pd.read_sql(query, conn)
 
 
-# -------- EDIT / HAPUS BARANG TAB --------
+# ----------------- UI -----------------
 
-def show_data_barang():
+st.set_page_config("Stok ATK Kantor", "📦", layout="wide")
+init_db()
+
+MENU = st.sidebar.radio("Menu", ["Transaksi", "Data Barang", "Riwayat"])
+
+# ---------- Transaksi ----------
+if MENU == "Transaksi":
+    st.header("🛒 Transaksi Barang Masuk/Keluar")
+    # Autocomplete via text_input + suggestions table
+    search = st.text_input("Cari barang (nama / merk)")
+    df_items = fetch_items(search)
+    if not df_items.empty and search:
+        st.dataframe(df_items[["material_id", "name", "brand", "stock"]], height=150)
+    material_id = st.text_input("Material ID (mis. PEN-001)")
+    qty = st.number_input("Jumlah", min_value=1, step=1)
+    action = st.selectbox("Aksi", ["masuk", "keluar"])
+    if st.button("Submit"):
+        if add_transaction(material_id, int(qty), action):
+            st.success("Transaksi berhasil!")
+
+    st.subheader("Riwayat Terbaru")
+    st.dataframe(fetch_transactions(20))
+
+# ---------- Data Barang ----------
+elif MENU == "Data Barang":
     st.header("📦 Data Barang")
-    tab1, tab2, tab3 = st.tabs(["📋 Daftar", "➕ Tambah", "✏️ Edit/Hapus"])
+    tab1, tab2 = st.tabs(["Daftar", "Tambah / Edit"])
 
-    # ——— Tab 1: List
     with tab1:
-        df = get_all_barang()
-        st.dataframe(df, use_container_width=True) if not df.empty else st.info("Belum ada data")
+        st.dataframe(fetch_items())
 
-    # ——— Tab 2: Tambah (menggunakan kode asli pengguna, ringkas di sini)
     with tab2:
-        st.subheader("Tambah Barang Baru")
-        with st.form("add_barang"):
-            col1, col2 = st.columns(2)
-            with col1:
-                kode_barang = st.text_input("Kode Barang*")
-                nama_barang = st.text_input("Nama Barang*")
-                kategori = st.selectbox("Kategori*", KATEGORI_LIST)
-                satuan = st.selectbox("Satuan*", SATUAN_LIST)
-            with col2:
-                stok_min = st.number_input("Stok Minimum*", 0, value=10)
-                stok_curr = st.number_input("Stok Saat Ini*", 0, value=0)
-                harga = st.number_input("Harga Satuan*", 0.0)
-                lokasi = st.text_input("Lokasi Penyimpanan")
-            keterangan = st.text_area("Keterangan")
-            if st.form_submit_button("Tambah Barang"):
-                if kode_barang and nama_barang:
-                    data = (
-                        kode_barang,
-                        nama_barang,
-                        kategori,
-                        satuan,
-                        stok_min,
-                        stok_curr,
-                        harga,
-                        lokasi,
-                        date.today(),
-                        keterangan,
-                    )
-                    if insert_barang(data):
-                        st.success("Barang ditambahkan!")
-                        st.rerun()
-                else:
-                    st.error("Field bertanda * wajib diisi")
+        st.subheader("Form Tambah / Edit Barang")
+        col1, col2 = st.columns(2)
+        with col1:
+            material_id = st.text_input("Material ID* (unik)")
+            name = st.text_input("Nama Barang*")
+            brand = st.text_input("Merk*")
+        with col2:
+            category = st.selectbox("Kategori", ["Alat Tulis", "Kertas", "Alat Kantor", "Elektronik", "Lainnya"])
+            stock = st.number_input("Stok", min_value=0, step=1)
+        if st.button("Simpan / Perbarui"):
+            if material_id and name and brand:
+                upsert_item(material_id, name, brand, category, int(stock))
+                st.success("Data disimpan.")
+            else:
+                st.error("Material ID, Nama, Merk wajib diisi!")
+        st.divider()
+        st.subheader("Hapus Barang")
+        del_material = st.text_input("Material ID untuk dihapus")
+        if st.button("Hapus Barang"):
+            if del_material:
+                delete_item(del_material)
+                st.success("Barang dihapus.")
 
-    # ——— Tab 3: Edit/Hapus
-    with tab3:
-        st.subheader("Edit atau Hapus Barang")
-        df = get_all_barang()
-        if df.empty:
-            st.info("Belum ada data barang")
-            return
-
-        kode_selected = st.selectbox("Pilih Kode Barang", df["kode_barang"], key="sel_kode")
-        record = get_barang_by_kode(kode_selected)
-        if record is None:
-            st.error("Barang tidak ditemukan")
-            return
-
-        (
-            _id,
-            kode,
-            nama,
-            kategori,
-            satuan,
-            stok_min,
-            stok_curr,
-            harga,
-            lokasi,
-            tanggal_input,
-            ket,
-        ) = record
-
-        with st.form("edit_barang"):
-            col1, col2 = st.columns(2)
-            with col1:
-                nama_new = st.text_input("Nama Barang*", value=nama)
-                kategori_new = st.selectbox("Kategori*", KATEGORI_LIST, index=KATEGORI_LIST.index(categoria) if (categoria:=kategori) in KATEGORI_LIST else 0)
-                satuan_new = st.selectbox("Satuan*", SATUAN_LIST, index=SATUAN_LIST.index(satuan) if satuan in SATUAN_LIST else 0)
-            with col2:
-                stok_min_new = st.number_input("Stok Minimum*", 0, value=stok_min)
-                stok_curr_new = st.number_input("Stok Saat Ini*", 0, value=stok_curr)
-                harga_new = st.number_input("Harga Satuan*", 0.0, value=harga)
-            lokasi_new = st.text_input("Lokasi Penyimpanan", value=lokasi or "")
-            ket_new = st.text_area("Keterangan", value=ket or "")
-
-            col_save, col_del = st.columns([3, 1])
-            with col_save:
-                if st.form_submit_button("💾 Simpan Perubahan"):
-                    if update_barang(
-                        kode,
-                        (
-                            nama_new,
-                            kategori_new,
-                            satuan_new,
-                            stok_min_new,
-                            stok_curr_new,
-                            harga_new,
-                            lokasi_new,
-                            ket_new,
-                        ),
-                    ):
-                        st.success("Perubahan disimpan")
-                        st.rerun()
-            with col_del:
-                if st.form_submit_button("🗑️ Hapus Barang", help="Hapus barang & seluruh transaksi terkait"):
-                    if st.checkbox("Konfirmasi hapus barang dan TRANSAKSI terkait", key="confirm_del"):
-                        if delete_barang(kode):
-                            st.success("Barang & transaksi dihapus")
-                            st.rerun()
-                    else:
-                        st.warning("Centang konfirmasi untuk menghapus.")
-
-# ---------------------------------------------------
-if __name__ == "__main__":
-    main()
+# ---------- Riwayat ----------
+else:
+    st.header("📜 Riwayat Transaksi")
+    df = fetch_transactions()
+    st.dataframe(df)
+    if st.download_button(
+        "Download CSV",
+        df.to_csv(index=False).encode(),
+        file_name=f"riwayat_{date.today()}.csv",
+        mime="text/csv",
+    ):
+        st.success("Berhasil diunduh.")
