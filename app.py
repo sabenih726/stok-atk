@@ -174,15 +174,20 @@ if excel_file and st.sidebar.button("🚀 Import ke Database"):
 # ---------- Transaksi ----------
 if MENU == "Transaksi":
     st.header("🛒 Transaksi Barang Masuk/Keluar")
+    # Autocomplete via text_input + suggestions table
+    search = st.text_input("Cari barang (nama / merk)")
+    df_items = fetch_items(search)
+    if not df_items.empty and search:
+        st.dataframe(df_items[["material_id", "name", "brand", "stock"]], height=150)
+    material_id = st.text_input("Material ID (mis. PEN-001)")
+    qty = st.number_input("Jumlah", min_value=1, step=1)
+    action = st.selectbox("Aksi", ["masuk", "keluar"])
+    if st.button("Submit"):
+        if add_transaction(material_id, int(qty), action):
+            st.success("Transaksi berhasil!")
 
-    with st.expander("📥 Import Stok dari Excel"):
-        excel_file = st.file_uploader(
-            "Pilih file .xlsx / .xls", type=["xlsx", "xls"], key="xl_uploader"
-        )
-        if excel_file and st.button("🚀 Import ke Database", key="import_btn"):
-            # ... baca & upsert seperti sebelumnya
-            st.success("Import stok berhasil!")
-            st.rerun()
+    st.subheader("Riwayat Terbaru")
+    st.dataframe(fetch_transactions(20))
 
 # ---------- Data Barang ----------
 elif MENU == "Data Barang":
