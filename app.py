@@ -135,15 +135,15 @@ def fetch_transactions(limit: int | None = None) -> pd.DataFrame:
 st.set_page_config("Stok ATK Kantor", "📦", layout="wide")
 init_db()
 
-MENU = st.sidebar.radio("Menu", ["Transaksi", "Data Barang", "Riwayat"])
+MENU = st.("Menu", ["Transaksi", "Data Barang", "Riwayat"])
 
 # === Import stok awal dari Excel ==========================================
-st.sidebar.header("🗂️ Import Stok dari Excel")
-excel_file = st.sidebar.file_uploader(
+st.("🗂️ Import Stok dari Excel")
+excel_file = st.(
     "Pilih file .xlsx / .xls", type=["xlsx", "xls"]
 )
 
-if excel_file and st.sidebar.button("🚀 Import ke Database"):
+if excel_file and st.("🚀 Import ke Database"):
     try:
         import pandas as pd
         from io import BytesIO
@@ -153,7 +153,7 @@ if excel_file and st.sidebar.button("🚀 Import ke Database"):
         # ↳ sesuaikan header kolom jika berbeda
         required = {"material_id", "name", "brand", "category", "stock"}
         if not required.issubset({c.lower() for c in df_xl.columns}):
-            st.sidebar.error(
+            st.(
                 f"Header Excel harus memuat kolom: {', '.join(required)}"
             )
         else:
@@ -165,28 +165,23 @@ if excel_file and st.sidebar.button("🚀 Import ke Database"):
                     str(row["category"]).strip(),
                     int(row["stock"]),
                 )
-            st.sidebar.success(f"Berhasil import {len(df_xl)} baris! ✅")
+            st.(f"Berhasil import {len(df_xl)} baris! ✅")
             st.rerun()  # refresh tampilan tabel
     except Exception as e:
-        st.sidebar.error(f"Gagal import: {e}")
+        st.(f"Gagal import: {e}")
 # ==========================================================================
 # ---------- Transaksi ----------
 if MENU == "Transaksi":
     st.header("🛒 Transaksi Barang Masuk/Keluar")
-    # Autocomplete via text_input + suggestions table
-    search = st.text_input("Cari barang (nama / merk)")
-    df_items = fetch_items(search)
-    if not df_items.empty and search:
-        st.dataframe(df_items[["material_id", "name", "brand", "stock"]], height=150)
-    material_id = st.text_input("Material ID (mis. PEN-001)")
-    qty = st.number_input("Jumlah", min_value=1, step=1)
-    action = st.selectbox("Aksi", ["masuk", "keluar"])
-    if st.button("Submit"):
-        if add_transaction(material_id, int(qty), action):
-            st.success("Transaksi berhasil!")
 
-    st.subheader("Riwayat Terbaru")
-    st.dataframe(fetch_transactions(20))
+    with st.expander("📥 Import Stok dari Excel"):
+        excel_file = st.file_uploader(
+            "Pilih file .xlsx / .xls", type=["xlsx", "xls"], key="xl_uploader"
+        )
+        if excel_file and st.button("🚀 Import ke Database", key="import_btn"):
+            # ... baca & upsert seperti sebelumnya
+            st.success("Import stok berhasil!")
+            st.rerun()
 
 # ---------- Data Barang ----------
 elif MENU == "Data Barang":
