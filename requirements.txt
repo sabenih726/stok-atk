@@ -1,6 +1,14 @@
+# Hapus sqlite3 - sudah built-in di Python
+# sqlite3
+
+# Gunakan versi pandas yang kompatibel dengan Python 3.13
 streamlit==1.28.0
-pandas==2.1.0
-sqlite3
-plotly==5.15.0
-numpy==1.24.3
-python-dateutil==2.8.2
+pandas>=2.1.4
+# Atau gunakan versi yang lebih stabil:
+# pandas==2.2.0
+
+# Tambahkan dependency lain yang mungkin diperlukan
+numpy>=1.24.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
