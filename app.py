@@ -135,7 +135,7 @@ def fetch_transactions(limit: int | None = None) -> pd.DataFrame:
 st.set_page_config("Stok ATK Kantor", "📦", layout="wide")
 init_db()
 
-MENU = st.("Menu", ["Transaksi", "Data Barang", "Riwayat"])
+MENU = st.sidebar.radio("Menu", ["Transaksi", "Data Barang", "Riwayat"])
 
 # === Import stok awal dari Excel ==========================================
 # === Import stok awal dari Excel ==========================================
