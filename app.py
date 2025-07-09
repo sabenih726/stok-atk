@@ -426,27 +426,36 @@ def main():
         if excel_file and st.button("🚀 Import ke Database"):
             try:
                 df_xl = pd.read_excel(excel_file)
-                required = {"material_id", "name", "category", "stock", "min_stock", "price" }
+                required = {"material_id", "name", "category", "stock"}
                 
                 if not required.issubset({c.lower() for c in df_xl.columns}):
                     st.error(f"❌ Header Excel harus memuat: {', '.join(required)}")
                 else:
                     imported = 0
-                    for _, row in df_xl.iterrows():
+                    errors = []
+                    
+                    for idx, row in df_xl.iterrows():
                         try:
                             upsert_item(
-                                material_id = str(row["material_id"]).strip(),
-                                name = str(row["name"]).strip(),
-                                category = str(row["category"]).strip(),
-                                stock = int(row["stock"]),
-                                min_stock = int(row.get("min_stock", 10)),
-                                price = float(row.get("price", 0))
+                                str(row["material_id"]).strip(),
+                                str(row["name"]).strip(),
+                                str(row["category"]).strip(),
+                                int(row["stock"]),
+                                10,
+                                0.0
                             )
                             imported += 1
                         except Exception as e:
-                            st.warning(f"⚠️ Error pada baris {imported+1}: {e}")
+                            error_msg = f"Baris {idx+2}: {str(e)}"
+                            errors.append(error_msg)
+                            st.warning(f"⚠️ {error_msg}")
                     
-                    st.success(f"✅ Berhasil import {imported} item!")
+                    if imported > 0:
+                        st.success(f"✅ Berhasil import {imported} item!")
+
+                    if errors:
+                        st.warning(f"⚠️ {len(errors)} item gagal diimport.")
+            
                     st.rerun()
                     
             except Exception as e:
