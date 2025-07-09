@@ -952,7 +952,7 @@ def export_to_template():
                 'Stok minimum untuk alert (opsional, default: 10)',
                 'Harga per unit (opsional, default: 0)'
             ],
-            'Required': ['Ya', 'Ya', 'Ya', 'Ya', 'Ya', 'Tidak', 'Tidak']
+            'Required': ['Ya', 'Ya', 'Ya', 'Ya', 'Tidak', 'Tidak']
         })
         instructions.to_excel(writer, sheet_name='Instructions', index=False)
     
