@@ -426,7 +426,7 @@ def main():
         if excel_file and st.button("🚀 Import ke Database"):
             try:
                 df_xl = pd.read_excel(excel_file)
-                required = {"material_id", "name", "category", "stock"}
+                required = {"material_id", "name", "category", "stock", "min_stock", "price" }
                 
                 if not required.issubset({c.lower() for c in df_xl.columns}):
                     st.error(f"❌ Header Excel harus memuat: {', '.join(required)}")
@@ -435,12 +435,12 @@ def main():
                     for _, row in df_xl.iterrows():
                         try:
                             upsert_item(
-                                str(row["material_id"]).strip(),
-                                str(row["name"]).strip(),
-                                str(row["category"]).strip(),
-                                int(row["stock"]),
-                                int(row.get("min_stock", 10)),
-                                float(row.get("price", 0))
+                                material_id = str(row["material_id"]).strip(),
+                                name = str(row["name"]).strip(),
+                                category = str(row["category"]).strip(),
+                                stock = int(row["stock"]),
+                                min_stock = int(row.get("min_stock", 10)),
+                                price = float(row.get("price", 0))
                             )
                             imported += 1
                         except Exception as e:
