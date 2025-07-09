@@ -570,7 +570,7 @@ def show_transaction_page():
             col_a, col_b = st.columns(2)
             
             with col_a:
-                search = st.text_input("🔍 Cari barang (nama/merk/ID)")
+                search = st.text_input("🔍 Cari barang (nama/kategori/ID)")
                 material_id = st.text_input("📋 Material ID")
                 qty = st.number_input("📊 Jumlah", min_value=1, step=1)
             
@@ -584,13 +584,13 @@ def show_transaction_page():
                 st.session_state.submitted_transaction = False
 
             if submitted and not st.session_state.submitted_transaction:
-               st.session_state.submitted_transaction = True
+                st.session_state.submitted_transaction = True
 
-               if material_id and qty:
+                if material_id and qty:
                     if add_transaction(material_id, int(qty), action, note):
-                    st.success("✅ Transaksi berhasil dicatat!")
-                    st.rerun()
-               else:
+                        st.success("✅ Transaksi berhasil dicatat!")
+                        st.rerun()
+                else:
                     st.error("❌ Material ID dan jumlah harus diisi!")
     
     with col2:
@@ -600,7 +600,7 @@ def show_transaction_page():
             df_search = fetch_items(search)
             if not df_search.empty:
                 st.dataframe(
-                    df_search[["material_id", "name", "brand", "stock", "status"]],
+                    df_search[["material_id", "name", "stock", "status"]],
                     use_container_width=True,
                     height=200
                 )
