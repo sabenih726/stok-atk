@@ -592,14 +592,6 @@ def show_transaction_page():
                     st.rerun()
                else:
                     st.error("❌ Material ID dan jumlah harus diisi!")
-            
-            if submitted:
-                if material_id and qty:
-                    if add_transaction(material_id, int(qty), action, note):
-                        st.success("✅ Transaksi berhasil dicatat!")
-                        st.rerun()
-                else:
-                    st.error("❌ Material ID dan jumlah harus diisi!")
     
     with col2:
         # Quick search results
