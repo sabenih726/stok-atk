@@ -1070,12 +1070,12 @@ def main():
                         for idx, row in df_xl.iterrows():
                             try:
                                 upsert_item(
-                                    str(row["material_id"]).strip(),
-                                    str(row["name"]).strip(),
-                                    str(row["category"]).strip(),
-                                    int(row["stock"]),
-                                    int(row.get("min_stock", 10)),
-                                    float(row.get("price", 0))
+                                    material_id = str(row.get("material_id", "")).strip(),
+                                    name = str(row.get("name", "")).strip(),
+                                    category = str(row.get("category", "")).strip(),
+                                    stock = int(row["stock"]),
+                                    min_stock = int(row.get("min_stock", 10)),
+                                    price = float(row.get("price", 0))
                                 )
                                 imported += 1
                             except Exception as e:
