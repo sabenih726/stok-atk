@@ -578,6 +578,8 @@ def show_transaction_page():
                 action = st.selectbox("⚡ Aksi", ["masuk", "keluar"])
                 note = st.text_area("📝 Catatan (opsional)", height=100)
             
+            submitted = st.form_submit_button("✅ Submit Transaksi")
+            
             if 'submitted_transaction' not in st.session_state:
                 st.session_state.submitted_transaction = False
                             
