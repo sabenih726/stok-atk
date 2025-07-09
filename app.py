@@ -708,9 +708,8 @@ def export_to_template():
         
         # Sheet instruksi
         instructions = pd.DataFrame({
-            'No': [1, 2, 3, 4, 5, 6],
-            'Kolom': ['material_id', 'name', 'category', 'stock', 'min_stock', 'price'],
-            'Deskripsi': [
+            'Field': ['material_id', 'name', 'category', 'stock', 'min_stock', 'price'],
+            'Description': [
                 'ID unik untuk setiap barang (contoh: ATK001, KRT001)',
                 'Nama lengkap barang',
                 'Kategori: Alat Tulis, Kertas, atau Alat Kantor',
@@ -718,40 +717,9 @@ def export_to_template():
                 'Batas minimum stok untuk alert (angka)',
                 'Harga per unit dalam rupiah (angka)'
             ],
-            'Wajib': ['Ya', 'Ya', 'Ya', 'Ya', 'Tidak', 'Tidak'],
-            'Contoh': ['ATK001', 'Pulpen Pilot Hitam', 'Alat Tulis', '50', '10', '5000']
+            'Required': ['Ya', 'Ya', 'Ya', 'Ya', 'Tidak', 'Tidak']
         })
-        instructions.to_excel(writer, sheet_name='Instruksi', index=False)
-        
-        # Sheet validasi
-        validation_rules = pd.DataFrame({
-            'Aturan': [
-                'Material ID harus unik',
-                'Nama barang tidak boleh kosong',
-                'Kategori harus salah satu: Alat Tulis, Kertas, Alat Kantor',
-                'Stok harus angka positif atau 0',
-                'Min stock harus angka positif',
-                'Harga harus angka positif atau 0'
-            ],
-            'Contoh_Benar': [
-                'ATK001, KRT001, ALK001',
-                'Pulpen Pilot Hitam',
-                'Alat Tulis',
-                '50',
-                '10',
-                '5000'
-            ],
-            'Contoh_Salah': [
-                'Duplikat: ATK001, ATK001',
-                'Kosong atau hanya spasi',
-                'Tulis Alat (salah kategori)',
-                '-5 (negatif)',
-                '-10 (negatif)',
-                '-1000 (negatif)'
-            ]
-        })
-        validation_rules.to_excel(writer, sheet_name='Validasi', index=False)
-    
+           
     return output.getvalue()
 
 # Enhanced error handling dan logging
