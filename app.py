@@ -616,6 +616,7 @@ def validate_excel_data(df):
     return errors
 
 # Perbaikan fungsi upsert_item untuk handle error yang lebih baik
+# Perbaikan fungsi upsert_item untuk handle error yang lebih baik
 def upsert_item(material_id, name, category, stock, min_stock=10, price=0.0):
     """Insert or update item dengan error handling yang lebih baik"""
     try:
@@ -708,8 +709,9 @@ def export_to_template():
         
         # Sheet instruksi
         instructions = pd.DataFrame({
-            'Field': ['material_id', 'name', 'category', 'stock', 'min_stock', 'price'],
-            'Description': [
+            'No': [1, 2, 3, 4, 5, 6],
+            'Kolom': ['material_id', 'name', 'category', 'stock', 'min_stock', 'price'],
+            'Deskripsi': [
                 'ID unik untuk setiap barang (contoh: ATK001, KRT001)',
                 'Nama lengkap barang',
                 'Kategori: Alat Tulis, Kertas, atau Alat Kantor',
@@ -717,9 +719,40 @@ def export_to_template():
                 'Batas minimum stok untuk alert (angka)',
                 'Harga per unit dalam rupiah (angka)'
             ],
-            'Required': ['Ya', 'Ya', 'Ya', 'Ya', 'Tidak', 'Tidak']
+            'Wajib': ['Ya', 'Ya', 'Ya', 'Ya', 'Tidak', 'Tidak'],
+            'Contoh': ['ATK001', 'Pulpen Pilot Hitam', 'Alat Tulis', '50', '10', '5000']
         })
-           
+        instructions.to_excel(writer, sheet_name='Instruksi', index=False)
+        
+        # Sheet validasi
+        validation_rules = pd.DataFrame({
+            'Aturan': [
+                'Material ID harus unik',
+                'Nama barang tidak boleh kosong',
+                'Kategori harus salah satu: Alat Tulis, Kertas, Alat Kantor',
+                'Stok harus angka positif atau 0',
+                'Min stock harus angka positif',
+                'Harga harus angka positif atau 0'
+            ],
+            'Contoh_Benar': [
+                'ATK001, KRT001, ALK001',
+                'Pulpen Pilot Hitam',
+                'Alat Tulis',
+                '50',
+                '10',
+                '5000'
+            ],
+            'Contoh_Salah': [
+                'Duplikat: ATK001, ATK001',
+                'Kosong atau hanya spasi',
+                'Tulis Alat (salah kategori)',
+                '-5 (negatif)',
+                '-10 (negatif)',
+                '-1000 (negatif)'
+            ]
+        })
+        validation_rules.to_excel(writer, sheet_name='Validasi', index=False)
+    
     return output.getvalue()
 
 # Enhanced error handling dan logging
@@ -745,139 +778,180 @@ def clear_error_log():
     except Exception:
         return False
 
-# Add notification system
+# Fungsi untuk notifikasi sistem
 def show_notifications():
     """Show system notifications"""
-    stats = get_dashboard_stats()
-    
-    if stats['low_stock'] > 0:
-        st.warning(f"⚠️ {stats['low_stock']} item memiliki stok rendah!")
-    
-    # Check for items with zero stock
-    with get_conn() as conn:
-        zero_stock = conn.execute("SELECT COUNT(*) FROM items WHERE stock = 0").fetchone()[0]
-        if zero_stock > 0:
-            st.error(f"❌ {zero_stock} item habis stok!")
-
-# Enhanced main function with error handling
-def main():
     try:
-        st.set_page_config(
-            page_title="Stok ATK Kantor",
-            page_icon="📦",
-            layout="wide",
-            initial_sidebar_state="expanded"
-        )
+        stats = get_dashboard_stats()
         
-        load_custom_css()
-        init_db()
+        if stats['low_stock'] > 0:
+            st.warning(f"⚠️ {stats['low_stock']} item memiliki stok rendah!")
         
-        # Show notifications
-        show_notifications()
-        
-        # Header
-        st.markdown("""
-        <div class="main-header">
-            <h1>Manajemen Stok ATK</h1>
-            <p>Sistem Automation Keluar Masuk ATK</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Sidebar
-        with st.sidebar:
-            st.markdown("### 🎯 Menu Navigasi")
-            MENU = st.radio(
-                "Pilih Menu:",
-                ["📊 Dashboard", "🛒 Transaksi", "📦 Data Barang", "📜 Riwayat", "⚙️ Pengaturan"],
-                index=0
-            )
-            
-            st.markdown("---")
-            
-            # Quick stats in sidebar
-            stats = get_dashboard_stats()
-            
-            st.markdown(f"""
-            <div class="metric-card">
-                <h4>📊 Ringkasan</h4>
-                <p><strong>Total Item:</strong> {stats['total_items']}</p>
-                <p><strong>Stok Rendah:</strong> {stats['low_stock']}</p>
-                <p><strong>Nilai Total:</strong> Rp {stats['total_value']:,.0f}</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            st.markdown("---")
-            
-            # Template download
-            add_template_download()
-            
-            st.markdown("---")
-            
-            # Import Excel
-            st.markdown("### 📁 Import Data")
-            excel_file = st.file_uploader(
-                "Upload file Excel (.xlsx/.xls)",
-                type=["xlsx", "xls"],
-                help="File harus memiliki kolom: material_id, name, category, stock"
-            )
-            
-            if excel_file and st.button("🚀 Import ke Database"):
-                try:
-                    df_xl = pd.read_excel(excel_file)
-                    required = {"material_id", "name", "category", "stock"}
-                    
-                    if not required.issubset({c.lower() for c in df_xl.columns}):
-                        st.error(f"❌ Header Excel harus memuat: {', '.join(required)}")
-                    else:
-                        imported = 0
-                        errors = []
-                        
-                        for idx, row in df_xl.iterrows():
-                            try:
-                                upsert_item(
-                                    material_id = str(row.get("material_id", "")).strip(),
-                                    name = str(row.get("name", "")).strip(),
-                                    category = str(row.get("category", "")).strip(),
-                                    stock = int(row["stock"]),
-                                    min_stock = int(row.get("min_stock", 10)),
-                                    price = float(row.get("price", 0))
-                                )
-                                imported += 1
-                            except Exception as e:
-                                error_msg = f"Baris {idx+2}: {str(e)}"
-                                errors.append(error_msg)
-                                log_error(error_msg, "import_excel")
-                        
-                        if imported > 0:
-                            st.success(f"✅ Berhasil import {imported} item!")
-                        
-                        if errors:
-                            st.warning(f"⚠️ {len(errors)} item gagal diimport:")
-                            for error in errors[:5]:  # Show first 5 errors
-                                st.caption(error)
-                        
-                        st.rerun()
-                        
-                except Exception as e:
-                    error_msg = f"Gagal import: {str(e)}"
-                    st.error(f"❌ {error_msg}")
-                    log_error(error_msg, "import_excel")
-        
-        # Main content based on menu selection
-        if MENU == "📊 Dashboard":
-            show_dashboard()
-        elif MENU == "🛒 Transaksi":
-            show_transaction_page()
-        elif MENU == "📦 Data Barang":
-            show_items_page()
-        elif MENU == "📜 Riwayat":
-            show_history_page()
-        elif MENU == "⚙️ Pengaturan":
-            show_settings_page()
-            
+        # Check for items with zero stock
+        with get_conn() as conn:
+            zero_stock = conn.execute("SELECT COUNT(*) FROM items WHERE stock = 0").fetchone()[0]
+            if zero_stock > 0:
+                st.error(f"❌ {zero_stock} item habis stok!")
     except Exception as e:
-        st.error(f"❌ Terjadi kesalahan sistem: {str(e)}")
-        log_error(str(e), "main")
+        log_error(f"Error in show_notifications: {str(e)}", "show_notifications")
 
+# Fungsi untuk mendapatkan koneksi database
+def get_conn():
+    """Get database connection - pastikan fungsi ini sudah didefinisikan"""
+    import sqlite3
+    return sqlite3.connect(DB)
+
+# Fungsi untuk mendapatkan statistik dashboard
+def get_dashboard_stats():
+    """Get dashboard statistics"""
+    try:
+        with get_conn() as conn:
+            # Total items
+            total_items = conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]
+            
+            # Low stock items
+            low_stock = conn.execute("SELECT COUNT(*) FROM items WHERE stock <= min_stock").fetchone()[0]
+            
+            # Total value
+            total_value = conn.execute("SELECT SUM(stock * price) FROM items").fetchone()[0] or 0
+            
+            # Monthly transactions
+            monthly_trans = conn.execute("""
+                SELECT COUNT(*) FROM transactions 
+                WHERE date(tdate) >= date('now', 'start of month')
+            """).fetchone()[0]
+            
+            return {
+                'total_items': total_items,
+                'low_stock': low_stock,
+                'total_value': total_value,
+                'monthly_trans': monthly_trans
+            }
+    except Exception as e:
+        log_error(f"Error in get_dashboard_stats: {str(e)}", "get_dashboard_stats")
+        return {
+            'total_items': 0,
+            'low_stock': 0,
+            'total_value': 0,
+            'monthly_trans': 0
+        }
+
+# Fungsi untuk load CSS custom
+def load_custom_css():
+    """Load custom CSS styling"""
+    st.markdown("""
+    <style>
+    .main-header {
+        background: linear-gradient(90deg, #1e3c72, #2a5298);
+        color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+    
+    .metric-card {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #007bff;
+        margin: 0.5rem 0;
+    }
+    
+    .metric-card h4 {
+        color: #007bff;
+        margin-bottom: 0.5rem;
+    }
+    
+    .metric-card p {
+        margin: 0.25rem 0;
+        color: #6c757d;
+    }
+    
+    .stAlert {
+        border-radius: 8px;
+    }
+    
+    .stProgress > div > div {
+        background: linear-gradient(90deg, #28a745, #20c997);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Fungsi untuk inisialisasi database
+def init_db():
+    """Initialize database tables"""
+    try:
+        with get_conn() as conn:
+            # Create items table
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    material_id TEXT UNIQUE NOT NULL,
+                    name TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    stock INTEGER DEFAULT 0,
+                    min_stock INTEGER DEFAULT 10,
+                    price REAL DEFAULT 0.0,
+                    status TEXT DEFAULT 'Aman',
+                    last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Create transactions table
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS transactions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    material_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    quantity INTEGER NOT NULL,
+                    note TEXT,
+                    tdate DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (material_id) REFERENCES items (material_id)
+                )
+            """)
+            
+            conn.commit()
+    except Exception as e:
+        log_error(f"Error in init_db: {str(e)}", "init_db")
+        st.error(f"❌ Gagal inisialisasi database: {str(e)}")
+
+# Tambahkan import yang diperlukan
+import pandas as pd
+import streamlit as st
+import sqlite3
+import os
+from datetime import datetime, date, timedelta
+
+# Definisi path database
+DB = "inventory.db"
+
+# Placeholder untuk fungsi-fungsi yang diperlukan
+def show_dashboard():
+    """Placeholder untuk dashboard page"""
+    st.markdown("## 📊 Dashboard")
+    st.info("Dashboard page - implementasi sesuai kebutuhan")
+
+def show_transaction_page():
+    """Placeholder untuk transaction page"""
+    st.markdown("## 🛒 Transaksi")
+    st.info("Transaction page - implementasi sesuai kebutuhan")
+
+def show_items_page():
+    """Placeholder untuk items page"""
+    st.markdown("## 📦 Data Barang")
+    st.info("Items page - implementasi sesuai kebutuhan")
+
+def show_history_page():
+    """Placeholder untuk history page"""
+    st.markdown("## 📜 Riwayat")
+    st.info("History page - implementasi sesuai kebutuhan")
+
+def show_settings_page():
+    """Placeholder untuk settings page"""
+    st.markdown("## ⚙️ Pengaturan")
+    st.info("Settings page - implementasi sesuai kebutuhan")
+
+# Fungsi untuk menjalankan aplikasi
 if __name__ == "__main__":
     main()
