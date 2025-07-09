@@ -420,13 +420,13 @@ def main():
         excel_file = st.file_uploader(
             "Upload file Excel (.xlsx/.xls)",
             type=["xlsx", "xls"],
-            help="File harus memiliki kolom: material_id, name, brand, category, stock"
+            help="File harus memiliki kolom: material_id, name, category, stock"
         )
         
         if excel_file and st.button("🚀 Import ke Database"):
             try:
                 df_xl = pd.read_excel(excel_file)
-                required = {"material_id", "name", "brand", "category", "stock"}
+                required = {"material_id", "name", "category", "stock"}
                 
                 if not required.issubset({c.lower() for c in df_xl.columns}):
                     st.error(f"❌ Header Excel harus memuat: {', '.join(required)}")
@@ -666,7 +666,6 @@ def show_items_page():
             with col1:
                 material_id = st.text_input("📋 Material ID*", help="ID unik untuk barang")
                 name = st.text_input("📝 Nama Barang*")
-                brand = st.text_input("🏷️ Merk*")
                 category = st.selectbox("📂 Kategori", 
                     ["Alat Tulis", "Kertas", "Alat Kantor"])
             
