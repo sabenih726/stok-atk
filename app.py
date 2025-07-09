@@ -219,7 +219,6 @@ def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 material_id TEXT UNIQUE,
                 name TEXT,
-                brand TEXT,
                 category TEXT,
                 stock INTEGER,
                 min_stock INTEGER DEFAULT 10,
@@ -256,7 +255,7 @@ def fetch_items(search: str = "") -> pd.DataFrame:
                        ELSE 'Tinggi'
                    END as status
                    FROM items 
-                   WHERE name LIKE ? OR brand LIKE ? OR material_id LIKE ?
+                   WHERE name LIKE ? OR material_id LIKE ?
                    ORDER BY name""",
                 conn,
                 params=(f"%{search}%", f"%{search}%", f"%{search}%"),
@@ -274,20 +273,20 @@ def fetch_items(search: str = "") -> pd.DataFrame:
             conn
         )
 
-def upsert_item(material_id: str, name: str, brand: str, category: str, stock: int, min_stock: int = 10, price: float = 0):
+def upsert_item(material_id: str, name: str, category: str, stock: int, min_stock: int = 10, price: float = 0):
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("SELECT id FROM items WHERE material_id = ?", (material_id,))
         row = cur.fetchone()
         if row:
             cur.execute(
-                "UPDATE items SET name=?, brand=?, category=?, stock=?, min_stock=?, price=? WHERE material_id=?",
-                (name, brand, category, stock, min_stock, price, material_id),
+                "UPDATE items SET name=?, category=?, stock=?, min_stock=?, price=? WHERE material_id=?",
+                (name, category, stock, min_stock, price, material_id),
             )
         else:
             cur.execute(
-                "INSERT INTO items (material_id,name,brand,category,stock,min_stock,price) VALUES (?,?,?,?,?,?,?)",
-                (material_id, name, brand, category, stock, min_stock, price),
+                "INSERT INTO items (material_id,name,category,stock,min_stock,price) VALUES (?,?,?,?,?,?,?)",
+                (material_id, name, category, stock, min_stock, price),
             )
         conn.commit()
 
@@ -320,7 +319,7 @@ def add_transaction(material_id: str, qty: int, action: str, note: str = ""):
 
 def fetch_transactions(limit: int | None = None) -> pd.DataFrame:
     with get_conn() as conn:
-        query = """SELECT t.id, i.material_id, i.name, i.brand, t.qty, t.action, t.tdate, t.note
+        query = """SELECT t.id, i.material_id, i.name, t.qty, t.action, t.tdate, t.note
                    FROM transactions t JOIN items i ON t.item_id = i.id
                    ORDER BY t.id DESC"""
         if limit:
@@ -438,7 +437,6 @@ def main():
                             upsert_item(
                                 str(row["material_id"]).strip(),
                                 str(row["name"]).strip(),
-                                str(row["brand"]).strip(),
                                 str(row["category"]).strip(),
                                 int(row["stock"]),
                                 int(row.get("min_stock", 10)),
@@ -549,7 +547,7 @@ def show_dashboard():
         low_stock_items = df_items[df_items['stock'] <= df_items['min_stock']]
         if not low_stock_items.empty:
             st.dataframe(
-                low_stock_items[['material_id', 'name', 'brand', 'category', 'stock', 'min_stock', 'status']],
+                low_stock_items[['material_id', 'name', 'category', 'stock', 'min_stock', 'status']],
                 use_container_width=True
             )
         else:
@@ -600,7 +598,7 @@ def show_transaction_page():
             df_search = fetch_items(search)
             if not df_search.empty:
                 st.dataframe(
-                    df_search[["material_id", "name", "brand", "stock", "status"]],
+                    df_search[["material_id", "name", "stock", "status"]],
                     use_container_width=True,
                     height=200
                 )
@@ -628,7 +626,7 @@ def show_items_page():
         with col2:
             category_filter = st.selectbox(
                 "📂 Filter Kategori",
-                ["Semua", "Alat Tulis", "Kertas", "Alat Kantor", "Elektronik", "Lainnya"]
+                ["Semua", "Alat Tulis", "Kertas", "Alat Kantor"]
             )
         
         # Fetch and display items
@@ -670,7 +668,7 @@ def show_items_page():
                 name = st.text_input("📝 Nama Barang*")
                 brand = st.text_input("🏷️ Merk*")
                 category = st.selectbox("📂 Kategori", 
-                    ["Alat Tulis", "Kertas", "Alat Kantor", "Elektronik", "Lainnya"])
+                    ["Alat Tulis", "Kertas", "Alat Kantor"])
             
             with col2:
                 stock = st.number_input("📊 Stok Awal", min_value=0, step=1)
@@ -917,7 +915,7 @@ def get_top_items_by_value():
     """Get top items by total value (stock * price)"""
     with get_conn() as conn:
         return pd.read_sql(
-            """SELECT name, brand, category, stock, price, 
+            """SELECT name, category, stock, price, 
                       (stock * price) as total_value
                FROM items 
                WHERE price > 0 
@@ -930,7 +928,6 @@ def export_to_template():
     template_data = {
         'material_id': ['ATK001', 'ATK002', 'ATK003'],
         'name': ['Pulpen Pilot', 'Kertas A4', 'Stapler Joyko'],
-        'brand': ['Pilot', 'Paperline', 'Joyko'],
         'category': ['Alat Tulis', 'Kertas', 'Alat Kantor'],
         'stock': [50, 100, 10],
         'min_stock': [10, 20, 5],
@@ -946,11 +943,10 @@ def export_to_template():
         
         # Add instructions sheet
         instructions = pd.DataFrame({
-            'Field': ['material_id', 'name', 'brand', 'category', 'stock', 'min_stock', 'price'],
+            'Field': ['material_id', 'name', 'category', 'stock', 'min_stock', 'price'],
             'Description': [
                 'ID unik untuk setiap barang (wajib diisi)',
                 'Nama barang (wajib diisi)',
-                'Merk barang (wajib diisi)',
                 'Kategori barang (wajib diisi)',
                 'Jumlah stok awal (wajib diisi)',
                 'Stok minimum untuk alert (opsional, default: 10)',
@@ -1018,8 +1014,8 @@ def main():
         # Header
         st.markdown("""
         <div class="main-header">
-            <h1>📦 Sistem Manajemen Stok ATK</h1>
-            <p>Kelola inventaris alat tulis kantor dengan mudah dan efisien</p>
+            <h1>Manajemen Stok ATK</h1>
+            <p>Sistem Automation Keluar Masuk ATK</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -1077,7 +1073,6 @@ def main():
                                 upsert_item(
                                     str(row["material_id"]).strip(),
                                     str(row["name"]).strip(),
-                                    str(row["brand"]).strip(),
                                     str(row["category"]).strip(),
                                     int(row["stock"]),
                                     int(row.get("min_stock", 10)),
