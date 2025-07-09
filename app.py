@@ -727,7 +727,7 @@ def show_history_page():
         if action_filter != "Semua":
             df_filtered = df_filtered[df_filtered['action'] == action_filter]
         
-        # Display data
+        # Display data (tanpa brand)
         st.dataframe(df_filtered, use_container_width=True)
         
         # Export button
