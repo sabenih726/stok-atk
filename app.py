@@ -5,7 +5,7 @@ menarik, full page, dan user experience yang lebih baik.
 
 Dependencies
 ------------
-    pip install streamlit pandas plotly
+    pip install streamlit pandas plotly openpyxl
 """
 from __future__ import annotations
 
@@ -298,25 +298,45 @@ def delete_item(material_id: str):
         conn.commit()
 
 def add_transaction(material_id: str, qty: int, action: str, note: str = ""):
+    """Fixed transaction function with proper error handling"""
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT id, stock FROM items WHERE material_id = ?", (material_id,))
+        
+        # Get current item data
+        cur.execute("SELECT id, stock, name FROM items WHERE material_id = ?", (material_id,))
         row = cur.fetchone()
+        
         if not row:
-            st.error("❌ Barang tidak ditemukan.")
-            return False
-        item_id, curr_stock = row
-        new_stock = curr_stock + qty if action == "masuk" else curr_stock - qty
-        if new_stock < 0:
-            st.error("❌ Stok tidak mencukupi!")
-            return False
-        cur.execute(
-            "INSERT INTO transactions (item_id, qty, action, tdate, note) VALUES (?,?,?,?,?)",
-            (item_id, qty, action, date.today(), note),
-        )
-        cur.execute("UPDATE items SET stock = ? WHERE id = ?", (new_stock, item_id))
-        conn.commit()
-        return True
+            return False, "❌ Barang tidak ditemukan."
+        
+        item_id, curr_stock, item_name = row
+        
+        # Calculate new stock
+        if action == "masuk":
+            new_stock = curr_stock + qty
+        else:  # action == "keluar"
+            new_stock = curr_stock - qty
+            if new_stock < 0:
+                return False, f"❌ Stok tidak mencukupi! Stok saat ini: {curr_stock}"
+        
+        try:
+            # Add transaction record
+            cur.execute(
+                "INSERT INTO transactions (item_id, qty, action, tdate, note) VALUES (?,?,?,?,?)",
+                (item_id, qty, action, date.today(), note),
+            )
+            
+            # Update item stock
+            cur.execute("UPDATE items SET stock = ? WHERE id = ?", (new_stock, item_id))
+            
+            conn.commit()
+            
+            success_msg = f"✅ Transaksi berhasil! {item_name} - {action} {qty} unit. Stok sekarang: {new_stock}"
+            return True, success_msg
+            
+        except Exception as e:
+            conn.rollback()
+            return False, f"❌ Error database: {str(e)}"
 
 def fetch_transactions(limit: int | None = None) -> pd.DataFrame:
     with get_conn() as conn:
@@ -382,6 +402,12 @@ def main():
     
     load_custom_css()
     init_db()
+    
+    # Initialize session state
+    if 'transaction_success' not in st.session_state:
+        st.session_state.transaction_success = False
+    if 'last_transaction_time' not in st.session_state:
+        st.session_state.last_transaction_time = None
     
     # Header
     st.markdown("""
@@ -560,50 +586,71 @@ def show_dashboard():
 def show_transaction_page():
     st.markdown("## 🛒 Transaksi Barang Masuk/Keluar")
     
+    # Clear success message after some time
+    if st.session_state.transaction_success and st.session_state.last_transaction_time:
+        if datetime.now().timestamp() - st.session_state.last_transaction_time > 3:
+            st.session_state.transaction_success = False
+            st.session_state.last_transaction_time = None
+    
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        # Transaction form
-        with st.form("transaction_form"):
-            st.markdown("### 📝 Form Transaksi")
-            
-            col_a, col_b = st.columns(2)
-            
-            with col_a:
-                search = st.text_input("🔍 Cari barang (nama/kategori/ID)")
-                material_id = st.text_input("📋 Material ID")
-                qty = st.number_input("📊 Jumlah", min_value=1, step=1)
-            
-            with col_b:
-                action = st.selectbox("⚡ Aksi", ["masuk", "keluar"])
-                note = st.text_area("📝 Catatan (opsional)", height=100)
-            
-            submitted = st.form_submit_button("✅ Submit Transaksi")
-
-            if 'submitted_transaction' not in st.session_state:
-                st.session_state.submitted_transaction = False
-
-            if submitted and not st.session_state.submitted_transaction:
-                st.session_state.submitted_transaction = True
-
-                if material_id and qty:
-                    if add_transaction(material_id, int(qty), action, note):
-                        st.success("✅ Transaksi berhasil dicatat!")
-                        st.rerun()
+        # Transaction form - FIXED VERSION
+        st.markdown("### 📝 Form Transaksi")
+        
+        # Search functionality
+        search = st.text_input("🔍 Cari barang (nama/kategori/ID)", key="search_transaction")
+        
+        # Form inputs
+        material_id = st.text_input("📋 Material ID", key="material_id_input")
+        
+        col_a, col_b = st.columns(2)
+        with col_a:
+            qty = st.number_input("📊 Jumlah", min_value=1, step=1, key="qty_input")
+            action = st.selectbox("⚡ Aksi", ["masuk", "keluar"], key="action_input")
+        
+        with col_b:
+            note = st.text_area("📝 Catatan (opsional)", height=100, key="note_input")
+        
+        # Submit button
+        if st.button("✅ Submit Transaksi", key="submit_transaction"):
+            if material_id and qty:
+                success, message = add_transaction(material_id, int(qty), action, note)
+                
+                if success:
+                    st.success(message)
+                    st.session_state.transaction_success = True
+                    st.session_state.last_transaction_time = datetime.now().timestamp()
+                    
+                    # Clear form inputs
+                    st.session_state.material_id_input = ""
+                    st.session_state.qty_input = 1
+                    st.session_state.note_input = ""
+                    
+                    # Rerun to refresh data
+                    st.rerun()
                 else:
-                    st.error("❌ Material ID dan jumlah harus diisi!")
+                    st.error(message)
+            else:
+                st.error("❌ Material ID dan jumlah harus diisi!")
     
     with col2:
         # Quick search results
-        if 'search' in locals() and search:
+        if search:
             st.markdown("### 🔍 Hasil Pencarian")
             df_search = fetch_items(search)
             if not df_search.empty:
-                st.dataframe(
-                    df_search[["material_id", "name", "stock", "status"]],
-                    use_container_width=True,
-                    height=200
-                )
+                # Display search results in a more compact format
+                for _, item in df_search.head(5).iterrows():
+                    with st.container():
+                        st.markdown(f"""
+                        **{item['name']}** ({item['material_id']})  
+                        Stok: {item['stock']} | Status: {item['status']}
+                        """)
+                        if st.button(f"Pilih {item['material_id']}", key=f"select_{item['material_id']}"):
+                            st.session_state.material_id_input = item['material_id']
+                            st.rerun()
+                        st.markdown("---")
             else:
                 st.info("📝 Tidak ada hasil yang ditemukan")
     
@@ -902,7 +949,7 @@ def get_database_stats():
         avg_stock = conn.execute("SELECT AVG(stock) FROM items").fetchone()[0] or 0
         
         # Database size
-        db_size = os.path.getsize(DB) / (1024 * 1024)  # Convert to MB
+        db_size = os.path.getsize(DB) / (1024 * 1024) if os.path.exists(DB) else 0  # Convert to MB
         
         return {
             'total_items': total_items,
@@ -924,80 +971,6 @@ def get_top_items_by_value():
                ORDER BY total_value DESC""",
             conn
         )
-
-def export_to_template():
-    """Create Excel template for import"""
-    template_data = {
-        'material_id': ['ATK001', 'ATK002', 'ATK003'],
-        'name': ['Pulpen Pilot', 'Kertas A4', 'Stapler Joyko'],
-        'brand': ['Pilot', 'Paperline', 'Joyko'],
-        'category': ['Alat Tulis', 'Kertas', 'Alat Kantor'],
-        'stock': [50, 100, 10],
-        'min_stock': [10, 20, 5],
-        'price': [5000, 50000, 75000]
-    }
-    
-    df_template = pd.DataFrame(template_data)
-    
-    from io import BytesIO
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_template.to_excel(writer, sheet_name='Template', index=False)
-        
-        # Add instructions sheet
-        instructions = pd.DataFrame({
-            'Field': ['material_id', 'name', 'brand', 'category', 'stock', 'min_stock', 'price'],
-            'Description': [
-                'ID unik untuk setiap barang (wajib diisi)',
-                'Nama barang (wajib diisi)',
-                'Merk barang (wajib diisi)',
-                'Kategori barang (wajib diisi)',
-                'Jumlah stok awal (wajib diisi)',
-                'Stok minimum untuk alert (opsional, default: 10)',
-                'Harga per unit (opsional, default: 0)'
-            ],
-            'Required': ['Ya', 'Ya', 'Ya', 'Ya', 'Ya', 'Tidak', 'Tidak']
-        })
-        instructions.to_excel(writer, sheet_name='Instructions', index=False)
-    
-    return output.getvalue()
-
-# Add template download to sidebar
-def add_template_download():
-    """Add template download option to sidebar"""
-    st.markdown("### 📋 Template Import")
-    if st.button("📥 Download Template Excel"):
-        template_data = export_to_template()
-        st.download_button(
-            label="📥 Download Template",
-            data=template_data,
-            file_name=f"template_import_inventory.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-# Enhanced error handling and logging
-def log_error(error_msg, function_name):
-    """Simple error logging"""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    error_log = f"[{timestamp}] ERROR in {function_name}: {error_msg}\n"
-    
-    # Write to error log file
-    with open("error_log.txt", "a") as f:
-        f.write(error_log)
-
-# Add notification system
-def show_notifications():
-    """Show system notifications"""
-    stats = get_dashboard_stats()
-    
-    if stats['low_stock'] > 0:
-        st.warning(f"⚠️ {stats['low_stock']} item memiliki stok rendah!")
-    
-    # Check for items with zero stock
-    with get_conn() as conn:
-        zero_stock = conn.execute("SELECT COUNT(*) FROM items WHERE stock = 0").fetchone()[0]
-        if zero_stock > 0:
-            st.error(f"❌ {zero_stock} item habis stok!")
 
 if __name__ == "__main__":
     main()
