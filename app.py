@@ -403,12 +403,6 @@ def main():
     load_custom_css()
     init_db()
     
-    # Initialize session state
-    if 'transaction_success' not in st.session_state:
-        st.session_state.transaction_success = False
-    if 'last_transaction_time' not in st.session_state:
-        st.session_state.last_transaction_time = None
-    
     # Header
     st.markdown("""
     <div class="main-header">
@@ -586,11 +580,9 @@ def show_dashboard():
 def show_transaction_page():
     st.markdown("## 🛒 Transaksi Barang Masuk/Keluar")
     
-    # Clear success message after some time
-    if st.session_state.transaction_success and st.session_state.last_transaction_time:
-        if datetime.now().timestamp() - st.session_state.last_transaction_time > 3:
-            st.session_state.transaction_success = False
-            st.session_state.last_transaction_time = None
+    # Initialize form reset key
+    if 'form_key' not in st.session_state:
+        st.session_state.form_key = 0
     
     col1, col2 = st.columns([2, 1])
     
@@ -599,60 +591,67 @@ def show_transaction_page():
         st.markdown("### 📝 Form Transaksi")
         
         # Search functionality
-        search = st.text_input("🔍 Cari barang (nama/kategori/ID)", key="search_transaction")
+        search = st.text_input("🔍 Cari barang (nama/kategori/ID)", key=f"search_transaction_{st.session_state.form_key}")
         
-        # Form inputs
-        material_id = st.text_input("📋 Material ID", key="material_id_input")
-        
-        col_a, col_b = st.columns(2)
-        with col_a:
-            qty = st.number_input("📊 Jumlah", min_value=1, step=1, key="qty_input")
-            action = st.selectbox("⚡ Aksi", ["masuk", "keluar"], key="action_input")
-        
-        with col_b:
-            note = st.text_area("📝 Catatan (opsional)", height=100, key="note_input")
-        
-        # Submit button
-        if st.button("✅ Submit Transaksi", key="submit_transaction"):
-            if material_id and qty:
-                success, message = add_transaction(material_id, int(qty), action, note)
-                
-                if success:
-                    st.success(message)
-                    st.session_state.transaction_success = True
-                    st.session_state.last_transaction_time = datetime.now().timestamp()
+        # Use form with dynamic key to reset form
+        with st.form(key=f"transaction_form_{st.session_state.form_key}"):
+            material_id = st.text_input("📋 Material ID")
+            
+            col_a, col_b = st.columns(2)
+            with col_a:
+                qty = st.number_input("📊 Jumlah", min_value=1, step=1, value=1)
+                action = st.selectbox("⚡ Aksi", ["masuk", "keluar"])
+            
+            with col_b:
+                note = st.text_area("📝 Catatan (opsional)", height=100)
+            
+            # Submit button
+            submitted = st.form_submit_button("✅ Submit Transaksi")
+            
+            if submitted:
+                if material_id and qty:
+                    success, message = add_transaction(material_id, int(qty), action, note)
                     
-                    # Clear form inputs
-                    st.session_state.material_id_input = ""
-                    st.session_state.qty_input = 1
-                    st.session_state.note_input = ""
-                    
-                    # Rerun to refresh data
-                    st.rerun()
+                    if success:
+                        st.success(message)
+                        # Reset form by incrementing form key
+                        st.session_state.form_key += 1
+                        st.rerun()
+                    else:
+                        st.error(message)
                 else:
-                    st.error(message)
-            else:
-                st.error("❌ Material ID dan jumlah harus diisi!")
+                    st.error("❌ Material ID dan jumlah harus diisi!")
     
     with col2:
         # Quick search results
-        if search:
+        if 'search' in locals() and search:
             st.markdown("### 🔍 Hasil Pencarian")
             df_search = fetch_items(search)
             if not df_search.empty:
                 # Display search results in a more compact format
-                for _, item in df_search.head(5).iterrows():
+                for idx, item in enumerate(df_search.head(5).iterrows()):
+                    _, item_data = item
                     with st.container():
                         st.markdown(f"""
-                        **{item['name']}** ({item['material_id']})  
-                        Stok: {item['stock']} | Status: {item['status']}
+                        **{item_data['name']}** ({item_data['material_id']})  
+                        Stok: {item_data['stock']} | Status: {item_data['status']}
                         """)
-                        if st.button(f"Pilih {item['material_id']}", key=f"select_{item['material_id']}"):
-                            st.session_state.material_id_input = item['material_id']
+                        # Use unique key for each button
+                        if st.button(f"Pilih {item_data['material_id']}", key=f"select_{item_data['material_id']}_{st.session_state.form_key}_{idx}"):
+                            # Store selected item in session state
+                            st.session_state.selected_material_id = item_data['material_id']
                             st.rerun()
                         st.markdown("---")
             else:
                 st.info("📝 Tidak ada hasil yang ditemukan")
+        
+        # Show selected item info
+        if hasattr(st.session_state, 'selected_material_id'):
+            st.markdown("### 📋 Item Terpilih")
+            st.info(f"Material ID: {st.session_state.selected_material_id}")
+            if st.button("🗑️ Clear Selection"):
+                del st.session_state.selected_material_id
+                st.rerun()
     
     # Recent transactions
     st.markdown("### 📜 Transaksi Terbaru")
