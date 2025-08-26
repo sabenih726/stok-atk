@@ -120,6 +120,7 @@ with st.form("order_form"):
             if success:
                 st.success(f"✅ Order berhasil dibuat dengan ID: **{order_data['order_id']}**")
                 st.balloons()
+                st.session_state.order_created = True
                 
                 # Show order summary
                 with st.expander("📋 Detail Order", expanded=True):
@@ -136,12 +137,15 @@ with st.form("order_form"):
                         st.write(f"**Status**: {order_data['status']}")
                 
                 st.info("💡 Order Anda sedang menunggu persetujuan admin. Anda akan diberitahu jika status berubah.")
-                
-                # Option to create another order
-                if st.button("➕ Buat Order Baru"):
-                    st.rerun()
             else:
                 st.error("❌ Gagal membuat order. Silakan coba lagi.")
+
+# Option to create another order (outside the form)
+if st.session_state.get('order_created', False):
+    st.markdown("---")
+    if st.button("➕ Buat Order Baru"):
+        st.session_state.order_created = False
+        st.rerun()
 
 # Order tracking section
 st.markdown("---")
