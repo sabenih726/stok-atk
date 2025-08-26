@@ -4,7 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 import os
-from utils.db_manager import DatabaseManager
+from utils.hybrid_manager import HybridDataManager
 from utils.inventory import InventoryManager
 
 # Page configuration
@@ -18,9 +18,16 @@ st.set_page_config(
 # Initialize data managers
 @st.cache_resource
 def get_managers():
-    return DatabaseManager(), InventoryManager()
+    return HybridDataManager(), InventoryManager()
 
 data_manager, inventory_manager = get_managers()
+
+# Show storage type info
+storage_info = data_manager.get_storage_info()
+if storage_info['type'] == 'CSV':
+    st.sidebar.info("💾 Using CSV file storage")
+else:
+    st.sidebar.success("🐘 Using PostgreSQL database")
 
 # Main page content
 st.title("🏢 Sistem Pengelolaan ATK")
