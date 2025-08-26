@@ -3,13 +3,13 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from utils.db_manager import DatabaseManager
+from utils.hybrid_manager import HybridDataManager
 from utils.inventory import InventoryManager
 
 st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
 
 # Initialize managers
-data_manager = DatabaseManager()
+data_manager = HybridDataManager()
 inventory_manager = InventoryManager()
 
 st.title("📊 Dashboard Inventory ATK")
