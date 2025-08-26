@@ -6,11 +6,16 @@ from datetime import datetime
 
 # Database configuration
 DATABASE_URL = os.getenv('DATABASE_URL')
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable not set")
+DATABASE_AVAILABLE = DATABASE_URL is not None
 
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Only create engine if database is available
+if DATABASE_AVAILABLE:
+    engine = create_engine(DATABASE_URL)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+else:
+    engine = None
+    SessionLocal = None
+
 Base = declarative_base()
 
 # Database Models
@@ -51,6 +56,8 @@ class Order(Base):
 
 def get_db():
     """Get database session"""
+    if not DATABASE_AVAILABLE:
+        return None
     db = SessionLocal()
     try:
         return db
@@ -59,10 +66,13 @@ def get_db():
 
 def create_tables():
     """Create all tables in the database"""
-    Base.metadata.create_all(bind=engine)
+    if DATABASE_AVAILABLE:
+        Base.metadata.create_all(bind=engine)
 
 def init_database():
     """Initialize the database with tables"""
+    if not DATABASE_AVAILABLE:
+        return False
     try:
         create_tables()
         return True
