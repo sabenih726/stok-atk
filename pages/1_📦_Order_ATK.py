@@ -5,13 +5,13 @@ import uuid
 from utils.hybrid_manager import HybridDataManager
 from utils.inventory import InventoryManager
 
-st.set_page_config(page_title="Order ATK", page_icon="📦", layout="wide")
+st.set_page_config(page_title="Request ATK", layout="wide")
 
 # Initialize managers
 data_manager = HybridDataManager()
 inventory_manager = InventoryManager()
 
-st.title("📦 Order ATK")
+st.title("Request ATK")
 st.markdown("Buat permintaan ATK baru dengan mengisi form di bawah ini.")
 
 # Load inventory data
