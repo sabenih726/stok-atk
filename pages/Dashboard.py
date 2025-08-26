@@ -6,13 +6,13 @@ from datetime import datetime, timedelta
 from utils.hybrid_manager import HybridDataManager
 from utils.inventory import InventoryManager
 
-st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Dashboard", layout="wide")
 
 # Initialize managers
 data_manager = HybridDataManager()
 inventory_manager = InventoryManager()
 
-st.title("📊 Dashboard Inventory ATK")
+st.title("Dashboard Inventory ATK")
 
 # Load data
 inventory_df = data_manager.load_inventory()
