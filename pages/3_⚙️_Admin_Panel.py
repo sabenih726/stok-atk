@@ -31,7 +31,7 @@ def authenticate_admin():
             st.error("Password salah!")
     
     st.markdown("---")
-    st.caption("Default password: admin123")
+    st.caption("Update Password Tiap Bulan")
 
 if not st.session_state.admin_authenticated:
     authenticate_admin()
