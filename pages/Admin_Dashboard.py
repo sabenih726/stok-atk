@@ -5,7 +5,7 @@ import uuid
 from utils.hybrid_manager import HybridDataManager
 from utils.inventory import InventoryManager
 
-st.set_page_config(page_title="Admin Panel", page_icon="⚙️", layout="wide")
+st.set_page_config(page_title="Admin Dashboard", layout="wide")
 
 # Initialize managers
 data_manager = HybridDataManager()
