@@ -4,12 +4,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import io
-from utils.db_manager import DatabaseManager
+from utils.hybrid_manager import HybridDataManager
 
 st.set_page_config(page_title="Reports", page_icon="📋", layout="wide")
 
 # Initialize data manager
-data_manager = DatabaseManager()
+data_manager = HybridDataManager()
 
 st.title("📋 Reports & Analytics")
 
