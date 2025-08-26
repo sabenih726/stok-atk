@@ -1,10 +1,10 @@
 import pandas as pd
 from datetime import datetime
-from utils.db_manager import DatabaseManager
+from utils.hybrid_manager import HybridDataManager
 
 class InventoryManager:
     def __init__(self):
-        self.data_manager = DatabaseManager()
+        self.data_manager = HybridDataManager()
     
     def check_stock_availability(self, item_id, requested_quantity):
         """Check if requested quantity is available in stock"""
