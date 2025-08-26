@@ -2,13 +2,13 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import uuid
-from utils.db_manager import DatabaseManager
+from utils.hybrid_manager import HybridDataManager
 from utils.inventory import InventoryManager
 
 st.set_page_config(page_title="Order ATK", page_icon="📦", layout="wide")
 
 # Initialize managers
-data_manager = DatabaseManager()
+data_manager = HybridDataManager()
 inventory_manager = InventoryManager()
 
 st.title("📦 Order ATK")
