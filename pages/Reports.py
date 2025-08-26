@@ -6,12 +6,12 @@ from datetime import datetime, timedelta
 import io
 from utils.hybrid_manager import HybridDataManager
 
-st.set_page_config(page_title="Reports", page_icon="📋", layout="wide")
+st.set_page_config(page_title="Reports", layout="wide")
 
 # Initialize data manager
 data_manager = HybridDataManager()
 
-st.title("📋 Reports & Analytics")
+st.title("Reports & Analytics")
 
 # Load data
 inventory_df = data_manager.load_inventory()
