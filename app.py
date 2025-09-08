@@ -350,16 +350,23 @@ elif menu == "📊 Laporan & Analytics":
             trans_df['tanggal'] = pd.to_datetime(trans_df['tanggal'])
             trans_df['date_only'] = trans_df['tanggal'].dt.date
             
-            daily_trans = trans_df.groupby(['date_only', 'jenis_transaksi']).agg({
-                'qty': 'sum'
-            }).reset_index()
-            
-            fig_line = px.line(daily_trans, x='date_only', y='qty', color='jenis_transaksi',
-                             title="Trend Transaksi Harian")
-            st.plotly_chart(fig_line, use_container_width=True)
-            
-            # Detailed transaction table
-            st.dataframe(trans_df.sort_values('tanggal', ascending=False), use_container_width=True)
+            if not trans_df.empty:
+                daily_trans = trans_df.groupby(['date_only', 'jenis_transaksi']).agg({
+                    'qty': 'sum'
+                }).reset_index()
+                
+                if not daily_trans.empty:
+                    fig_line = px.line(daily_trans, x='date_only', y='qty', color='jenis_transaksi',
+                                     title="Trend Transaksi Harian")
+                    st.plotly_chart(fig_line, use_container_width=True)
+                else:
+                    st.info("Tidak ada data transaksi untuk grafik trend.")
+                
+                # Detailed transaction table
+                st.subheader("Detail Transaksi")
+                st.dataframe(trans_df.sort_values('tanggal', ascending=False), use_container_width=True)
+            else:
+                st.info("Data transaksi kosong.")
         else:
             st.info("Belum ada riwayat transaksi.")
     
@@ -504,3 +511,4 @@ elif menu == "⚙️ Master Data":
 st.sidebar.markdown("---")
 st.sidebar.markdown("**📋 Sistem Inventory ATK v1.0**")
 st.sidebar.markdown("Developed with ❤️ using Streamlit")
+st.sidebar.markdown("© 2025 - Inventory Management System")
