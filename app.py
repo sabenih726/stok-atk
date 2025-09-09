@@ -312,7 +312,7 @@ elif st.session_state.user_type == 'admin':
                         "last_updated": "Update Terakhir"
                     },
                     hide_index=True,
-                    use_container_width=True
+                    width="stretch"
                 )
         with col2:
             st.subheader("Tambah Barang Baru")
@@ -403,7 +403,7 @@ elif st.session_state.user_type == 'admin':
                     )
                 },
                 hide_index=True,
-                use_container_width=True
+                width="stretch"
             )
             csv = df.to_csv(index=False)
             st.download_button(
@@ -431,7 +431,7 @@ elif st.session_state.user_type == 'admin':
                         "email": "Email"
                     },
                     hide_index=True,
-                    use_container_width=True
+                    width="stretch"
                 )
         with col2:
             st.subheader("Tambah Karyawan")
@@ -483,7 +483,7 @@ elif st.session_state.user_type == 'admin':
                 df = pd.DataFrame([dict(row) for row in top_items])
                 fig = px.bar(df, x='item_name', y='total_requested',
                             labels={'item_name': 'Nama Barang', 'total_requested': 'Jumlah Diminta'})
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             else:
                 st.info("Belum ada data transaksi")
         with col2:
@@ -497,7 +497,7 @@ elif st.session_state.user_type == 'admin':
             if dept_requests:
                 df = pd.DataFrame([dict(row) for row in dept_requests])
                 fig = px.pie(df, values='total_requests', names='department')
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             else:
                 st.info("Belum ada data permintaan")
         
@@ -518,7 +518,7 @@ elif st.session_state.user_type == 'admin':
             fig = go.Figure(data=[go.Pie(labels=df['status'], values=df['count'], 
                                          marker_colors=['#ff4444', '#ffaa00', '#00aa00'])])
             fig.update_layout(title="Distribusi Status Stok")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
 # Footer
 st.markdown("---")
