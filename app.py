@@ -1,49 +1,62 @@
 # app.py
 import streamlit as st
-from streamlit_option_menu import option_menu
-from auth import login_admin, logout_user
+from auth import login_user, login_admin, logout_user
+from dashboards.employee import show_employee_dashboard
 from dashboards.admin import show_admin_dashboard
+from database import Database
 
-# --- Page Config
 st.set_page_config(
-    page_title="Office Supplies System",
+    page_title="Office Supplies Management System",
     page_icon="📦",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# --- Init session
-for k,v in {"logged_in":False,"user_type":None,"user_name":None}.items():
-    st.session_state.setdefault(k,v)
+# Buat session state default
+for key, val in {
+    'logged_in': False,
+    'user_type': None,
+    'user_id': None,
+    'user_name': None,
+    'department': None
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = val
 
-# --- Sidebar
+# Sidebar login/logout
 with st.sidebar:
-    st.image("https://img.icons8.com/external-flaticons-lineal-color-flat-icons/512/external-office-supplies-human-resources-flaticons-lineal-color-flat-icons.png", width=80)
-    st.title("Office Supplies")
-
+    st.title("📦 Office Supplies System")
     if not st.session_state.logged_in:
-        st.subheader("Login sebagai Admin")
-        user = st.text_input("Username")
-        pw   = st.text_input("Password", type="password")
-        if st.button("Login", use_container_width=True):
-            if login_admin(user,pw): st.rerun()
-            else: st.error("Username / password salah!")
+        st.subheader("Login")
+        login_type = st.radio("Login sebagai:", ["Karyawan", "Admin"])
+        if login_type == "Karyawan":
+            email = st.text_input("Email")
+            if st.button("Login"):
+                if login_user(email): st.rerun()
+                else: st.error("Email tidak terdaftar")
+        else:
+            username = st.text_input("Username")
+            pw = st.text_input("Password", type="password")
+            if st.button("Login"):
+                if login_admin(username, pw): st.rerun()
+                else: st.error("Username atau password salah")
     else:
-        st.success(f"👋 Halo, {st.session_state.user_name}")
-        if st.button("Logout", use_container_width=True):
-            logout_user(); st.rerun()
+        st.write(f"👤 {st.session_state.user_name}")
+        st.write("🏢 " + st.session_state.department if st.session_state.user_type == 'employee' else "🔐 Administrator")
+        if st.button("Logout"):
+            logout_user()
+            st.rerun()
 
-# --- Main Content
+# Konten utama
 if not st.session_state.logged_in:
-    st.title("📦 Selamat Datang")
-    st.write("Silakan login Admin di sidebar untuk mulai.")
+    st.title("Selamat Datang")
+    st.write("Silakan login melalui sidebar untuk melanjutkan")
 else:
-    # Modern nav bar (option menu)
-    choice = option_menu(
-        None, ["Dashboard"],  # bisa ditambah menu lain
-        icons=["bar-chart"], orientation="horizontal"
-    )
-    if choice=="Dashboard":
+    if st.session_state.user_type == 'employee':
+        show_employee_dashboard()
+    else:
         show_admin_dashboard()
 
-# --- Footer
-st.markdown("<hr><center>Office Supplies Management System © 2024</center>",unsafe_allow_html=True)
+# Footer
+st.markdown("---")
+st.caption("Office Supplies Management System © 2024")
