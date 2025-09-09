@@ -1,12 +1,24 @@
-
+# auth.py
 import streamlit as st
 from database import Database
 
 db = Database()
 
+def login_user(email):
+    query = "SELECT * FROM employees WHERE email = ?"
+    result = db.execute_query(query, (email,))
+    if result:
+        user = result[0]
+        st.session_state.logged_in = True
+        st.session_state.user_type = 'employee'
+        st.session_state.user_id = user['id']
+        st.session_state.user_name = user['name']
+        st.session_state.department = user['department']
+        return True
+    return False
+
 def login_admin(username, password):
-    # ⚠️ sementara hardcode akun admin
-    if username == "admin" and password == "admin123":
+    if username == "admin" and password == "admin123":  # sementara
         st.session_state.logged_in = True
         st.session_state.user_type = 'admin'
         st.session_state.user_name = 'Administrator'
@@ -14,5 +26,9 @@ def login_admin(username, password):
     return False
 
 def logout_user():
-    for key in ["logged_in", "user_type", "user_name", "user_id", "department"]:
-        st.session_state[key] = None
+    """Reset session state"""
+    st.session_state.logged_in = False
+    st.session_state.user_type = None
+    st.session_state.user_id = None
+    st.session_state.user_name = None
+    st.session_state.department = None
