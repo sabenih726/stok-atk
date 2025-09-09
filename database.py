@@ -1,4 +1,4 @@
-import sqlite3
+import sqlite3   # <— ini dia yang wajib ada
 import pandas as pd
 from datetime import datetime
 import streamlit as st
@@ -17,7 +17,7 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # Tabel Karyawan
+        # ===== Tabel Karyawan
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS employees (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,7 +28,7 @@ class Database:
             )
         ''')
         
-        # Tabel Barang/Inventaris
+        # ===== Tabel Barang/Inventaris
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS inventory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,7 +40,7 @@ class Database:
             )
         ''')
         
-        # Tabel Permintaan
+        # ===== Tabel Permintaan
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS requisitions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,7 +55,7 @@ class Database:
             )
         ''')
         
-        # Tabel Detail Permintaan
+        # ===== Detail Permintaan
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS requisition_items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,7 +68,7 @@ class Database:
             )
         ''')
         
-        # Tabel Riwayat Transaksi
+        # ===== Riwayat Transaksi
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS transaction_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,7 +85,7 @@ class Database:
         
         conn.commit()
         
-        # Insert sample data if empty
+        # ===== Sample Data Inventory
         cursor.execute('SELECT COUNT(*) FROM inventory')
         if cursor.fetchone()[0] == 0:
             sample_items = [
@@ -100,16 +100,13 @@ class Database:
                 ('Amplop', 500, 'pcs', 100),
                 ('Map Folder', 75, 'pcs', 15)
             ]
-            
-            for item in sample_items:
-                cursor.execute('''
-                    INSERT INTO inventory (item_name, quantity, unit, min_stock)
-                    VALUES (?, ?, ?, ?)
-                ''', item)
-            
+            cursor.executemany('''
+                INSERT INTO inventory (item_name, quantity, unit, min_stock)
+                VALUES (?, ?, ?, ?)
+            ''', sample_items)
             conn.commit()
         
-        # Insert sample employees if empty
+        # ===== Sample Data Employees
         cursor.execute('SELECT COUNT(*) FROM employees')
         if cursor.fetchone()[0] == 0:
             sample_employees = [
@@ -118,13 +115,10 @@ class Database:
                 ('Bob Johnson', 'Finance', 'bob@company.com'),
                 ('Alice Brown', 'Marketing', 'alice@company.com')
             ]
-            
-            for emp in sample_employees:
-                cursor.execute('''
-                    INSERT INTO employees (name, department, email)
-                    VALUES (?, ?, ?)
-                ''', emp)
-            
+            cursor.executemany('''
+                INSERT INTO employees (name, department, email)
+                VALUES (?, ?, ?)
+            ''', sample_employees)
             conn.commit()
         
         conn.close()
