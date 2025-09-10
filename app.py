@@ -122,7 +122,6 @@ def export_stok_to_excel():
 
 def import_stok_from_excel(uploaded_file):
     df = pd.read_excel(uploaded_file)
-    # Validasi kolom
     if "nama_barang" not in df.columns or "stok" not in df.columns:
         return False, "Format file salah! Harus ada kolom: 'nama_barang' dan 'stok'"
     for _, row in df.iterrows():
@@ -198,15 +197,20 @@ with active_tab[2]:
 # --- TAB ADMIN PANEL ---
 with active_tab[3]:
     if not st.session_state.is_admin:
-        password = st.text_input("Masukkan Password Admin", type="password")
-        if password == "admin123":  # <-- ganti sesuai kebutuhan
-            st.session_state.is_admin = True
-            st.success("Berhasil masuk sebagai Admin!")
-        else:
-            st.warning("Tab ini khusus Admin. Silakan login.")
+        st.subheader("🔒 Login Admin")
+        with st.form("login_form"):
+            password = st.text_input("Password Admin", type="password")
+            login_btn = st.form_submit_button("Login")
+            if login_btn:
+                if password == "admin123":  # ganti password sesuai kebutuhan
+                    st.session_state.is_admin = True
+                    st.experimental_rerun()   # refresh agar langsung tampil menu admin
+                else:
+                    st.error("Password salah!")
     else:
+        st.success("✅ Anda login sebagai Admin")
         st.subheader("Admin Panel")
-        
+
         st.markdown("### Request Masuk")
         req_df = get_requests("Menunggu Konfirmasi")
         if req_df.empty:
@@ -235,8 +239,6 @@ with active_tab[3]:
 
         st.markdown("---")
         st.markdown("### Export & Import Data Stok")
-
-        # Export button
         excel_data = export_stok_to_excel()
         st.download_button(
             label="⬇️ Export Stok ke Excel",
@@ -245,7 +247,6 @@ with active_tab[3]:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-        # Download template
         template_file = generate_template()
         st.download_button(
             label="📄 Download Template Import",
@@ -254,8 +255,6 @@ with active_tab[3]:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
-        # Import Stok
-        st.write("### Import Stok dari Excel")
         uploaded_file = st.file_uploader("Upload file stok (Excel)", type=["xlsx"])
         if uploaded_file:
             success, msg = import_stok_from_excel(uploaded_file)
