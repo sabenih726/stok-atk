@@ -1,213 +1,121 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
-from database import Database
-import plotly.express as px
-import plotly.graph_objects as go
 
-# ===========================
-# CONFIG
-# ===========================
-st.set_page_config(
-    page_title="Office Supplies Management System",
-    page_icon="📦",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Office Supplies Manager", page_icon="📦", layout="wide")
 
-db = Database()
+# --- Inisialisasi data di session_state ---
+if "stok" not in st.session_state:
+    st.session_state.stok = pd.DataFrame({
+        "Nama Barang": ["Pulpen", "Buku Tulis", "Stapler", "Kertas A4", "Spidol"],
+        "Stok": [50, 30, 10, 100, 20]
+    })
 
-# ===========================
-# SESSION STATE INIT
-# ===========================
-for key, default in {
-    'logged_in': False,
-    'user_type': None,
-    'user_id': None,
-    'user_name': None,
-    'department': None
-}.items():
-    if key not in st.session_state:
-        st.session_state[key] = default
+if "requests" not in st.session_state:
+    st.session_state.requests = []  # list of pending requests
 
+if "history" not in st.session_state:
+    st.session_state.history = []  # list of confirmed transactions
 
-# ===========================
-# HELPER FUNCTIONS
-# ===========================
-def login_user(email: str) -> bool:
-    """Login untuk karyawan berdasarkan email"""
-    query = "SELECT * FROM employees WHERE email = ?"
-    result = db.execute_query(query, (email,))
-    if result:
-        user = result[0]
-        st.session_state.logged_in = True
-        st.session_state.user_type = 'employee'
-        st.session_state.user_id = user['id']
-        st.session_state.user_name = user['name']
-        st.session_state.department = user['department']
-        return True
-    return False
-
-
-def logout_user():
-    """Reset session state ke kondisi awal"""
-    for key in ['logged_in', 'user_type', 'user_id', 'user_name', 'department']:
-        st.session_state[key] = None if key != 'logged_in' else False
-
-
-# ===========================
-# SIDEBAR
-# ===========================
-with st.sidebar:
-    st.title("📦 Office Supplies System")
-
-    if not st.session_state.logged_in:
-        st.subheader("Login")
-        login_type = st.radio("Login sebagai:", ["Karyawan", "Admin"])
-
-        if login_type == "Karyawan":
-            email = st.text_input("Email")
-            if st.button("Login"):
-                if login_user(email):
-                    st.success("Login berhasil!")
-                    st.rerun()
-                else:
-                    st.error("Email tidak terdaftar")
-        else:
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
-            if st.button("Login"):
-                if username == "admin" and password == "admin123":   # TODO: pindahkan ke database
-                    st.session_state.logged_in = True
-                    st.session_state.user_type = 'admin'
-                    st.session_state.user_name = 'Administrator'
-                    st.success("Login berhasil!")
-                    st.rerun()
-                else:
-                    st.error("Username / password salah")
-    else:
-        # Info user login
-        st.write(f"👤 {st.session_state.user_name}")
-        if st.session_state.user_type == 'employee':
-            st.write(f"🏢 {st.session_state.department}")
-        else:
-            st.write("🔐 Administrator")
-
-        if st.button("🚪 Logout"):
-            logout_user()
-            st.rerun()
-
-
-# ===========================
-# MAIN CONTENT
-# ===========================
-if not st.session_state.logged_in:
-    st.title("Selamat Datang di Office Supplies Management System")
-    st.write("Silakan login melalui sidebar untuk melanjutkan")
-
-    # Statistik umum
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        total_items = db.execute_query("SELECT COUNT(*) as c FROM inventory")[0]['c']
-        st.metric("Total Jenis Barang", total_items)
-    with col2:
-        total_employees = db.execute_query("SELECT COUNT(*) as c FROM employees")[0]['c']
-        st.metric("Total Karyawan", total_employees)
-    with col3:
-        pending_reqs = db.execute_query("SELECT COUNT(*) as c FROM requisitions WHERE status='pending'")[0]['c']
-        st.metric("Permintaan Pending", pending_reqs)
-
-elif st.session_state.user_type == 'employee':
-    # ================= EMPLOYEE DASHBOARD =================
-    tab1, tab2, tab3 = st.tabs(["📝 Buat Permintaan", "📋 Riwayat Permintaan", "📊 Stok Barang"])
-
-    # TAB 1 : Ajukan Permintaan
-    with tab1:
-        st.header("Formulir Permintaan Barang")
-        items_data = db.execute_query("SELECT * FROM inventory WHERE quantity > 0 ORDER BY item_name")
-
-        if not items_data:
-            st.warning("Tidak ada barang tersedia untuk diminta 🚫")
-        else:
-            with st.form("requisition_form"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.text_input("Nama", value=st.session_state.user_name, disabled=True)
-                with col2:
-                    st.text_input("Departemen", value=st.session_state.department, disabled=True)
-
-                num_items = st.number_input("Jumlah jenis barang", 1, 10, 1)
-                selected_items = []
-
-                for i in range(num_items):
-                    c1, c2 = st.columns([3, 1])
-                    with c1:
-                        item_names = [item['item_name'] for item in items_data]
-                        selected_item = st.selectbox(f"Barang {i+1}", options=item_names, key=f"item_{i}")
-                    with c2:
-                        max_qty = next(item['quantity'] for item in items_data if item['item_name'] == selected_item)
-                        qty = st.number_input("Jumlah", 1, max_qty, 1, key=f"qty_{i}")
-                    selected_items.append({'item_name': selected_item, 'quantity': qty})
-
-                if st.form_submit_button("🚀 Ajukan Permintaan"):
-                    # Insert requisition
-                    req_id = db.execute_query(
-                        "INSERT INTO requisitions (employee_id, employee_name, department) VALUES (?, ?, ?)",
-                        (st.session_state.user_id, st.session_state.user_name, st.session_state.department)
-                    )
-                    for item in selected_items:
-                        item_data = next(i for i in items_data if i['item_name'] == item['item_name'])
-                        db.execute_query('''
-                            INSERT INTO requisition_items (requisition_id, item_id, item_name, quantity)
-                            VALUES (?, ?, ?, ?)
-                        ''', (req_id, item_data['id'], item['item_name'], item['quantity']))
-                    st.success("Permintaan berhasil diajukan!")
-                    st.balloons()
-
-
-    # TAB 2 : Riwayat Permintaan
-    with tab2:
-        st.header("Riwayat Permintaan Saya")
-        reqs = db.execute_query(
-            "SELECT * FROM requisitions WHERE employee_id = ? ORDER BY created_at DESC",
-            (st.session_state.user_id,)
-        )
-        if not reqs:
-            st.info("Belum ada riwayat permintaan 📭")
-        else:
-            for req in reqs:
-                with st.expander(f"#{req['id']} - {req['created_at'][:10]} - {req['status'].upper()}"):
-                    items = db.execute_query("SELECT * FROM requisition_items WHERE requisition_id = ?", (req['id'],))
-                    df = pd.DataFrame([dict(row) for row in items])
-                    if not df.empty:
-                        st.dataframe(df[['item_name', 'quantity']], hide_index=True)
-                    if req['admin_notes']:
-                        st.info(f"📝 Catatan Admin: {req['admin_notes']}")
-
-    # TAB 3 : Stok Barang
-    with tab3:
-        st.header("📊 Stok Barang Tersedia")
-        inv = db.execute_query("SELECT * FROM inventory ORDER BY item_name")
-        if inv:
-            df = pd.DataFrame([dict(row) for row in inv])
-            df['status'] = df.apply(lambda x: "⚠️ Rendah" if x['quantity'] <= x['min_stock'] else "✅ Oke", axis=1)
-            st.dataframe(
-                df[['item_name', 'quantity', 'unit', 'min_stock', 'status']],
-                hide_index=True
-            )
-
-
-# (Potongan Admin Dashboard dibiarkan mirip dengan aslinya karena sudah cukup kompleks.
-#  Tapi di sini sudah lebih rapih, konsisten dan modular.)
-    
-
-# ===========================
-# FOOTER
-# ===========================
-st.markdown("---")
 st.markdown(
-    "<div style='text-align: center'>"
-    "<p>Office Supplies Management System © 2024</p>"
-    "</div>",
+    "<h1 style='color:#2C3E50; text-align:center;'>📦 Office Supplies Manager</h1>", 
     unsafe_allow_html=True
 )
+
+tabs = st.tabs(["📝 Form Request", "🛠️ Admin Panel", "📊 Stok Barang", "📚 History Transaksi"])
+
+# --- TAB FORM REQUEST ---
+with tabs[0]:
+    st.subheader("Form Request Karyawan")
+    with st.form("form_request"):
+        nama = st.text_input("Nama", "")
+        departemen = st.text_input("Departemen", "")
+
+        st.write("Daftar Barang yang diminta:")
+        barang_list = []
+        for i in range(3):  # contoh: max 3 item per request
+            col1, col2 = st.columns([2,1])
+            with col1:
+                item = st.selectbox(f"Pilih Barang {i+1}", ["-"] + st.session_state.stok["Nama Barang"].tolist(), key=f"item_{i}")
+            with col2:
+                jumlah = st.number_input(f"Jumlah {i+1}", min_value=0, step=1, key=f"jumlah_{i}")
+            
+            if item != "-" and jumlah > 0:
+                barang_list.append((item, jumlah))
+
+        submitted = st.form_submit_button("Kirim Request")
+
+        if submitted:
+            if nama and departemen and barang_list:
+                st.session_state.requests.append({
+                    "Nama": nama,
+                    "Departemen": departemen,
+                    "Barang": barang_list,
+                    "Status": "Menunggu Konfirmasi"
+                })
+                st.success("Request berhasil dikirim!")
+            else:
+                st.error("Mohon isi semua data dan pilih minimal 1 barang.")
+
+# --- TAB ADMIN PANEL ---
+with tabs[1]:
+    st.subheader("Admin Panel - Konfirmasi Request")
+    
+    if not st.session_state.requests:
+        st.info("Belum ada request masuk.")
+    else:
+        for idx, req in enumerate(st.session_state.requests):
+            with st.expander(f"{req['Nama']} - {req['Departemen']} | Status: {req['Status']}"):
+                st.write("**Detail Barang Diminta:**")
+                for item, qty in req["Barang"]:
+                    st.write(f"- {item} : {qty}")
+                
+                if req["Status"] == "Menunggu Konfirmasi":
+                    confirm = st.button(f"Konfirmasi Request #{idx+1}", key=f"confirm_{idx}")
+                    if confirm:
+                        # cek stok
+                        stok_cukup = True
+                        for item, qty in req["Barang"]:
+                            stok_tersedia = st.session_state.stok.loc[
+                                st.session_state.stok["Nama Barang"] == item, "Stok"
+                            ].values[0]
+                            if qty > stok_tersedia:
+                                stok_cukup = False
+                                st.error(f"Stok {item} tidak cukup.")
+                                break
+                        
+                        if stok_cukup:
+                            # kurangi stok
+                            for item, qty in req["Barang"]:
+                                idx_stok = st.session_state.stok[
+                                    st.session_state.stok["Nama Barang"] == item
+                                ].index[0]
+                                st.session_state.stok.at[idx_stok, "Stok"] -= qty
+                            
+                            # ubah status dan simpan ke history
+                            req["Status"] = "Dikonfirmasi"
+                            st.session_state.history.append(req)
+                            st.success("Request berhasil dikonfirmasi & stok terupdate!")
+
+# --- TAB STOK BARANG ---
+with tabs[2]:
+    st.subheader("Stok Barang Tersedia")
+    st.dataframe(st.session_state.stok, use_container_width=True)
+
+# --- TAB HISTORY TRANSAKSI ---
+with tabs[3]:
+    st.subheader("History Transaksi")
+    if not st.session_state.history:
+        st.info("Belum ada transaksi tercatat.")
+    else:
+        history_data = []
+        for h in st.session_state.history:
+            for item, qty in h["Barang"]:
+                history_data.append({
+                    "Nama": h["Nama"],
+                    "Departemen": h["Departemen"],
+                    "Barang": item,
+                    "Jumlah": qty,
+                    "Status": h["Status"]
+                })
+        df_history = pd.DataFrame(history_data)
+        st.dataframe(df_history, use_container_width=True)
