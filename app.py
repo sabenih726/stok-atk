@@ -204,7 +204,7 @@ with active_tab[3]:
             if login_btn:
                 if password == "admin123":  # ganti password sesuai kebutuhan
                     st.session_state.is_admin = True
-                    st.experimental_rerun()   # refresh agar langsung tampil menu admin
+                    st.rerun()   # refresh agar langsung tampil menu admin
                 else:
                     st.error("Password salah!")
     else:
