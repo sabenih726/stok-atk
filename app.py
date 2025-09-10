@@ -14,7 +14,6 @@ c.execute("""CREATE TABLE IF NOT EXISTS stok (
     nama_barang TEXT UNIQUE,
     stok INTEGER
 )""")
-
 c.execute("""CREATE TABLE IF NOT EXISTS requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nama TEXT,
@@ -22,14 +21,12 @@ c.execute("""CREATE TABLE IF NOT EXISTS requests (
     status TEXT,
     tanggal TEXT
 )""")
-
 c.execute("""CREATE TABLE IF NOT EXISTS request_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     request_id INTEGER,
     barang TEXT,
     jumlah INTEGER
 )""")
-
 c.execute("""CREATE TABLE IF NOT EXISTS history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nama TEXT,
@@ -38,7 +35,6 @@ c.execute("""CREATE TABLE IF NOT EXISTS history (
     jumlah INTEGER,
     tanggal TEXT
 )""")
-
 conn.commit()
 
 # --- Seed data stok kalau masih kosong ---
@@ -71,12 +67,16 @@ def reduce_stok(item, qty):
 
 def add_request(nama, departemen, barang_list):
     tanggal = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    c.execute("INSERT INTO requests (nama, departemen, status, tanggal) VALUES (?,?,?,?)",
-              (nama, departemen, "Menunggu Konfirmasi", tanggal))
+    c.execute(
+        "INSERT INTO requests (nama, departemen, status, tanggal) VALUES (?,?,?,?)",
+        (nama, departemen, "Menunggu Konfirmasi", tanggal),
+    )
     request_id = c.lastrowid
     for item, jumlah in barang_list:
-        c.execute("INSERT INTO request_items (request_id, barang, jumlah) VALUES (?,?,?)",
-                  (request_id, item, jumlah))
+        c.execute(
+            "INSERT INTO request_items (request_id, barang, jumlah) VALUES (?,?,?)",
+            (request_id, item, jumlah),
+        )
     conn.commit()
 
 def get_requests(status_filter=None):
@@ -115,7 +115,7 @@ def get_history():
 def export_stok_to_excel():
     df = get_stok()
     buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="StokBarang")
     buffer.seek(0)
     return buffer
@@ -137,7 +137,7 @@ def import_stok_from_excel(uploaded_file):
 def generate_template():
     df = pd.DataFrame({"nama_barang": [], "stok": []})
     buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="Template")
     buffer.seek(0)
     return buffer
@@ -150,20 +150,33 @@ st.markdown("<h1 style='color:#2C3E50; text-align:center;'>📦 Office Supplies 
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
 
+# Session jumlah item di form request
+if "jumlah_item" not in st.session_state:
+    st.session_state.jumlah_item = 1
+
 tabs = ["📝 Form Request", "📊 Stok Barang", "📚 History Transaksi", "🔒 Admin Panel"]
 active_tab = st.tabs(tabs)
 
 # --- TAB FORM REQUEST ---
 with active_tab[0]:
     st.subheader("Form Request Karyawan")
+
+    # tombol plus/minus item
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        if st.button("➕ Tambah Barang"):
+            st.session_state.jumlah_item += 1
+    with col_btn2:
+        if st.button("➖ Kurangi Barang") and st.session_state.jumlah_item > 1:
+            st.session_state.jumlah_item -= 1
+
     with st.form("form_request"):
         nama = st.text_input("Nama", "")
         departemen = st.text_input("Departemen", "")
         barang_df = get_stok()
         barang_list = []
-        st.write("Pilih Barang:")
-        jumlah_item = st.number_input("Jumlah item berbeda", min_value=1, max_value=10, value=1)
-        for i in range(jumlah_item):
+
+        for i in range(st.session_state.jumlah_item):
             col1, col2 = st.columns([2,1])
             with col1:
                 item = st.selectbox(f"Barang {i+1}", ["-"] + barang_df["nama_barang"].tolist(), key=f"item_{i}")
@@ -171,11 +184,13 @@ with active_tab[0]:
                 qty = st.number_input(f"Jumlah {i+1}", min_value=0, step=1, key=f"jumlah_{i}")
             if item != "-" and qty > 0:
                 barang_list.append((item, qty))
+
         submitted = st.form_submit_button("Kirim Request")
         if submitted:
             if nama and departemen and barang_list:
                 add_request(nama, departemen, barang_list)
                 st.success("Request berhasil dikirim!")
+                st.session_state.jumlah_item = 1  # reset form setelah submit
             else:
                 st.error("Mohon isi semua data dengan benar.")
 
@@ -204,11 +219,15 @@ with active_tab[3]:
             if login_btn:
                 if password == "admin123":  # ganti password sesuai kebutuhan
                     st.session_state.is_admin = True
-                    st.rerun()   # refresh agar langsung tampil menu admin
+                    st.rerun()
                 else:
                     st.error("Password salah!")
     else:
         st.success("✅ Anda login sebagai Admin")
+        if st.button("🚪 Logout Admin"):
+            st.session_state.is_admin = False
+            st.rerun()
+
         st.subheader("Admin Panel")
 
         st.markdown("### Request Masuk")
@@ -235,7 +254,7 @@ with active_tab[3]:
             add_btn = st.form_submit_button("Tambah / Update Barang")
             if add_btn and new_item:
                 add_stok(new_item, qty)
-                st.success(f"Barang {new_item} ditambahkan / stok ditambah {qty}!")
+                st.success(f"Barang {new_item} berhasil ditambahkan / stok ditambah {qty}!")
 
         st.markdown("---")
         st.markdown("### Export & Import Data Stok")
