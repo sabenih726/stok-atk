@@ -3,3 +3,5 @@ pandas
 plotly
 streamlit-option-menu
 streamlit-aggrid
+XlsxWriter
+openpyxl
