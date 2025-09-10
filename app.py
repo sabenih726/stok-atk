@@ -111,6 +111,14 @@ def confirm_request(request_id):
 def get_history():
     return pd.read_sql("SELECT * FROM history ORDER BY tanggal DESC", conn)
 
+def delete_history_all():
+    c.execute("DELETE FROM history")
+    conn.commit()
+
+def delete_item_barang(nama_barang):
+    c.execute("DELETE FROM stok WHERE nama_barang=?", (nama_barang,))
+    conn.commit()
+
 # --- Export & Import Functions ---
 def export_stok_to_excel():
     df = get_stok()
@@ -146,11 +154,9 @@ def generate_template():
 st.set_page_config(page_title="Office Supplies Manager", page_icon="📦", layout="wide")
 st.markdown("<h1 style='color:#2C3E50; text-align:center;'>📦 Office Supplies Manager</h1>", unsafe_allow_html=True)
 
-# Session autentikasi admin
+# Session state
 if "is_admin" not in st.session_state:
     st.session_state.is_admin = False
-
-# Session jumlah item di form request
 if "jumlah_item" not in st.session_state:
     st.session_state.jumlah_item = 1
 
@@ -160,7 +166,6 @@ active_tab = st.tabs(tabs)
 # --- TAB FORM REQUEST ---
 with active_tab[0]:
     st.subheader("Form Request Karyawan")
-
     # tombol plus/minus item
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
@@ -190,7 +195,7 @@ with active_tab[0]:
             if nama and departemen and barang_list:
                 add_request(nama, departemen, barang_list)
                 st.success("Request berhasil dikirim!")
-                st.session_state.jumlah_item = 1  # reset form setelah submit
+                st.session_state.jumlah_item = 1
             else:
                 st.error("Mohon isi semua data dengan benar.")
 
@@ -217,7 +222,7 @@ with active_tab[3]:
             password = st.text_input("Password Admin", type="password")
             login_btn = st.form_submit_button("Login")
             if login_btn:
-                if password == "admin123":  # ganti password sesuai kebutuhan
+                if password == "admin123":
                     st.session_state.is_admin = True
                     st.rerun()
                 else:
@@ -282,18 +287,16 @@ with active_tab[3]:
             else:
                 st.error(msg)
 
-                st.markdown("---")
+        st.markdown("---")
         st.markdown("### 🗑️ Manajemen Data")
 
-        # Hapus History
         if st.button("Hapus Semua History Transaksi"):
             delete_history_all()
             st.success("Semua history transaksi berhasil dihapus!")
 
-        # Hapus Barang
         stok_df = get_stok()
         if not stok_df.empty:
             barang_pilihan = st.selectbox("Pilih Barang untuk Dihapus", stok_df["nama_barang"].tolist())
-            if st.button("Hapus Barang Ini"):
+            if st.button(f"Hapus Barang: {barang_pilihan}"):
                 delete_item_barang(barang_pilihan)
                 st.success(f"Barang '{barang_pilihan}' berhasil dihapus dari stok!")
