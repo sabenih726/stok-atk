@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 from datetime import datetime
+import io
 
 # --- Inisialisasi database sqlite ---
 conn = sqlite3.connect("office_supplies.db", check_same_thread=False)
@@ -53,7 +54,7 @@ if c.fetchone()[0] == 0:
     c.executemany("INSERT INTO stok (nama_barang, stok) VALUES (?,?)", default_items)
     conn.commit()
 
-# --- Fungsi pembantu ---
+# --- Fungsi pembantu database ---
 def get_stok():
     return pd.read_sql("SELECT * FROM stok", conn)
 
@@ -110,6 +111,38 @@ def confirm_request(request_id):
 def get_history():
     return pd.read_sql("SELECT * FROM history ORDER BY tanggal DESC", conn)
 
+# --- Export & Import Functions ---
+def export_stok_to_excel():
+    df = get_stok()
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="StokBarang")
+    buffer.seek(0)
+    return buffer
+
+def import_stok_from_excel(uploaded_file):
+    df = pd.read_excel(uploaded_file)
+    # Validasi kolom
+    if "nama_barang" not in df.columns or "stok" not in df.columns:
+        return False, "Format file salah! Harus ada kolom: 'nama_barang' dan 'stok'"
+    for _, row in df.iterrows():
+        nama = str(row["nama_barang"]).strip()
+        try:
+            qty = int(row["stok"])
+        except:
+            return False, f"Stok untuk {nama} tidak valid (harus angka)"
+        if nama != "" and qty >= 0:
+            add_stok(nama, qty)
+    return True, "Import stok berhasil!"
+
+def generate_template():
+    df = pd.DataFrame({"nama_barang": [], "stok": []})
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Template")
+    buffer.seek(0)
+    return buffer
+
 # --- UI Streamlit ---
 st.set_page_config(page_title="Office Supplies Manager", page_icon="📦", layout="wide")
 st.markdown("<h1 style='color:#2C3E50; text-align:center;'>📦 Office Supplies Manager</h1>", unsafe_allow_html=True)
@@ -127,7 +160,6 @@ with active_tab[0]:
     with st.form("form_request"):
         nama = st.text_input("Nama", "")
         departemen = st.text_input("Departemen", "")
-
         barang_df = get_stok()
         barang_list = []
         st.write("Pilih Barang:")
@@ -140,7 +172,6 @@ with active_tab[0]:
                 qty = st.number_input(f"Jumlah {i+1}", min_value=0, step=1, key=f"jumlah_{i}")
             if item != "-" and qty > 0:
                 barang_list.append((item, qty))
-
         submitted = st.form_submit_button("Kirim Request")
         if submitted:
             if nama and departemen and barang_list:
@@ -153,7 +184,7 @@ with active_tab[0]:
 with active_tab[1]:
     st.subheader("Stok Barang Tersedia")
     stok_df = get_stok()
-    st.dataframe(stok_df, use_container_width=True)
+    st.dataframe(stok_df, width="stretch")
 
 # --- TAB HISTORY TRANSAKSI ---
 with active_tab[2]:
@@ -162,13 +193,13 @@ with active_tab[2]:
     if history.empty:
         st.info("Belum ada transaksi.")
     else:
-        st.dataframe(history, use_container_width=True)
+        st.dataframe(history, width="stretch")
 
 # --- TAB ADMIN PANEL ---
 with active_tab[3]:
     if not st.session_state.is_admin:
         password = st.text_input("Masukkan Password Admin", type="password")
-        if password == "admin123":  # <-- ganti sesuai selera
+        if password == "admin123":  # <-- ganti sesuai kebutuhan
             st.session_state.is_admin = True
             st.success("Berhasil masuk sebagai Admin!")
         else:
@@ -201,3 +232,34 @@ with active_tab[3]:
             if add_btn and new_item:
                 add_stok(new_item, qty)
                 st.success(f"Barang {new_item} ditambahkan / stok ditambah {qty}!")
+
+        st.markdown("---")
+        st.markdown("### Export & Import Data Stok")
+
+        # Export button
+        excel_data = export_stok_to_excel()
+        st.download_button(
+            label="⬇️ Export Stok ke Excel",
+            data=excel_data,
+            file_name="stok_barang.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+        # Download template
+        template_file = generate_template()
+        st.download_button(
+            label="📄 Download Template Import",
+            data=template_file,
+            file_name="template_import_stok.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+        # Import Stok
+        st.write("### Import Stok dari Excel")
+        uploaded_file = st.file_uploader("Upload file stok (Excel)", type=["xlsx"])
+        if uploaded_file:
+            success, msg = import_stok_from_excel(uploaded_file)
+            if success:
+                st.success(msg)
+            else:
+                st.error(msg)
