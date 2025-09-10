@@ -281,3 +281,19 @@ with active_tab[3]:
                 st.success(msg)
             else:
                 st.error(msg)
+
+                st.markdown("---")
+        st.markdown("### 🗑️ Manajemen Data")
+
+        # Hapus History
+        if st.button("Hapus Semua History Transaksi"):
+            delete_history_all()
+            st.success("Semua history transaksi berhasil dihapus!")
+
+        # Hapus Barang
+        stok_df = get_stok()
+        if not stok_df.empty:
+            barang_pilihan = st.selectbox("Pilih Barang untuk Dihapus", stok_df["nama_barang"].tolist())
+            if st.button("Hapus Barang Ini"):
+                delete_item_barang(barang_pilihan)
+                st.success(f"Barang '{barang_pilihan}' berhasil dihapus dari stok!")
