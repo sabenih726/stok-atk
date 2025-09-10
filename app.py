@@ -40,6 +40,19 @@ c.execute("""CREATE TABLE IF NOT EXISTS history (
 
 conn.commit()
 
+# --- Seed data stok kalau masih kosong ---
+c.execute("SELECT COUNT(*) FROM stok")
+if c.fetchone()[0] == 0:
+    default_items = [
+        ("Pulpen", 50),
+        ("Buku Tulis", 30),
+        ("Stapler", 10),
+        ("Kertas A4", 100),
+        ("Spidol", 20)
+    ]
+    c.executemany("INSERT INTO stok (nama_barang, stok) VALUES (?,?)", default_items)
+    conn.commit()
+
 # --- Fungsi pembantu ---
 def get_stok():
     return pd.read_sql("SELECT * FROM stok", conn)
@@ -179,11 +192,12 @@ with active_tab[3]:
                         else:
                             st.error(msg)
 
-        st.markdown("### Tambah Barang Stok")
+        st.markdown("---")
+        st.markdown("### Tambah Barang / Update Stok")
         with st.form("form_barang"):
             new_item = st.text_input("Nama Barang")
-            qty = st.number_input("Jumlah Awal", min_value=1, step=1)
+            qty = st.number_input("Jumlah", min_value=1, step=1)
             add_btn = st.form_submit_button("Tambah / Update Barang")
             if add_btn and new_item:
                 add_stok(new_item, qty)
-                st.success(f"Barang {new_item} ditambahkan / update stok!")
+                st.success(f"Barang {new_item} ditambahkan / stok ditambah {qty}!")
