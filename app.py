@@ -35,6 +35,13 @@ c.execute("""CREATE TABLE IF NOT EXISTS history (
     jumlah INTEGER,
     tanggal TEXT
 )""")
+c.execute("""CREATE TABLE IF NOT EXISTS stok_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nama_barang TEXT,
+    jumlah INTEGER,
+    tipe TEXT, -- 'masuk' atau 'keluar'
+    tanggal TEXT
+)""")
 conn.commit()
 
 # --- Seed data stok kalau masih kosong ---
@@ -48,6 +55,9 @@ if c.fetchone()[0] == 0:
         ("Spidol", 20)
     ]
     c.executemany("INSERT INTO stok (nama_barang, stok) VALUES (?,?)", default_items)
+    for nama, qty in default_items:
+        c.execute("INSERT INTO stok_log (nama_barang, jumlah, tipe, tanggal) VALUES (?,?,?,?)",
+                  (nama, qty, 'masuk', datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
 
 # --- Fungsi pembantu database ---
@@ -59,10 +69,16 @@ def add_stok(nama_barang, qty):
         c.execute("INSERT INTO stok (nama_barang, stok) VALUES (?,?)", (nama_barang, qty))
     except sqlite3.IntegrityError:  # jika sudah ada, update stok
         c.execute("UPDATE stok SET stok = stok + ? WHERE nama_barang = ?", (qty, nama_barang))
+    # log stok masuk
+    c.execute("INSERT INTO stok_log (nama_barang, jumlah, tipe, tanggal) VALUES (?,?,?,?)",
+              (nama_barang, qty, 'masuk', datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
 
 def reduce_stok(item, qty):
     c.execute("UPDATE stok SET stok = stok - ? WHERE nama_barang = ?", (qty, item))
+    # log stok keluar
+    c.execute("INSERT INTO stok_log (nama_barang, jumlah, tipe, tanggal) VALUES (?,?,?,?)",
+              (item, qty, 'keluar', datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
 
 def add_request(nama, departemen, barang_list):
@@ -119,12 +135,24 @@ def delete_item_barang(nama_barang):
     c.execute("DELETE FROM stok WHERE nama_barang=?", (nama_barang,))
     conn.commit()
 
+# --- Rekap stok masuk / keluar ---
+def get_rekap_stok():
+    stok_df = get_stok()[["nama_barang", "stok"]]
+    masuk = pd.read_sql("SELECT nama_barang, SUM(jumlah) as masuk FROM stok_log WHERE tipe='masuk' GROUP BY nama_barang", conn)
+    keluar = pd.read_sql("SELECT nama_barang, SUM(jumlah) as keluar FROM stok_log WHERE tipe='keluar' GROUP BY nama_barang", conn)
+
+    df = pd.merge(stok_df, masuk, on="nama_barang", how="left")
+    df = pd.merge(df, keluar, on="nama_barang", how="left")
+    df = df.fillna(0)
+    df = df.rename(columns={"stok": "stok_tersedia"})
+    return df[["nama_barang", "masuk", "keluar", "stok_tersedia"]]
+
 # --- Export & Import Functions ---
 def export_stok_to_excel():
-    df = get_stok()
+    df = get_rekap_stok()
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="StokBarang")
+        df.to_excel(writer, index=False, sheet_name="RekapStok")
     buffer.seek(0)
     return buffer
 
@@ -152,7 +180,7 @@ def generate_template():
 
 # --- UI Streamlit ---
 st.set_page_config(page_title="Office Supplies Manager", page_icon="📦", layout="wide")
-st.markdown("<h1 style='color:#2C3E50; text-align:center;'>📦 Office Supplies Manager</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='color:#2C3E50; text-align:center;'>Office Supplies Manager</h1>", unsafe_allow_html=True)
 
 # Session state
 if "is_admin" not in st.session_state:
@@ -160,19 +188,18 @@ if "is_admin" not in st.session_state:
 if "jumlah_item" not in st.session_state:
     st.session_state.jumlah_item = 1
 
-tabs = ["📝 Form Request", "📊 Stok Barang", "📚 History Transaksi", "🔒 Admin Panel"]
+tabs = ["Form Request", "Stok Barang", "History Transaksi", "Admin Panel"]
 active_tab = st.tabs(tabs)
 
 # --- TAB FORM REQUEST ---
 with active_tab[0]:
     st.subheader("Form Request Karyawan")
-    # tombol plus/minus item
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
-        if st.button("➕ Tambah Barang"):
+        if st.button("Tambah Barang"):
             st.session_state.jumlah_item += 1
     with col_btn2:
-        if st.button("➖ Kurangi Barang") and st.session_state.jumlah_item > 1:
+        if st.button("Kurangi Barang") and st.session_state.jumlah_item > 1:
             st.session_state.jumlah_item -= 1
 
     with st.form("form_request"):
@@ -201,9 +228,9 @@ with active_tab[0]:
 
 # --- TAB STOK BARANG ---
 with active_tab[1]:
-    st.subheader("Stok Barang Tersedia")
-    stok_df = get_stok()
-    st.dataframe(stok_df, width="stretch")
+    st.subheader("Rekap Stok Barang")
+    rekap_df = get_rekap_stok()
+    st.dataframe(rekap_df, width="stretch")
 
 # --- TAB HISTORY TRANSAKSI ---
 with active_tab[2]:
@@ -217,7 +244,7 @@ with active_tab[2]:
 # --- TAB ADMIN PANEL ---
 with active_tab[3]:
     if not st.session_state.is_admin:
-        st.subheader("🔒 Login Admin")
+        st.subheader("Login Admin")
         with st.form("login_form"):
             password = st.text_input("Password Admin", type="password")
             login_btn = st.form_submit_button("Login")
@@ -228,8 +255,8 @@ with active_tab[3]:
                 else:
                     st.error("Password salah!")
     else:
-        st.success("✅ Anda login sebagai Admin")
-        if st.button("🚪 Logout Admin"):
+        st.success("Anda login sebagai Admin")
+        if st.button("Logout Admin"):
             st.session_state.is_admin = False
             st.rerun()
 
@@ -265,15 +292,15 @@ with active_tab[3]:
         st.markdown("### Export & Import Data Stok")
         excel_data = export_stok_to_excel()
         st.download_button(
-            label="⬇️ Export Stok ke Excel",
+            label="Export Stok ke Excel",
             data=excel_data,
-            file_name="stok_barang.xlsx",
+            file_name="rekap_stok.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
         template_file = generate_template()
         st.download_button(
-            label="📄 Download Template Import",
+            label="Download Template Import",
             data=template_file,
             file_name="template_import_stok.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -288,8 +315,7 @@ with active_tab[3]:
                 st.error(msg)
 
         st.markdown("---")
-        st.markdown("### 🗑️ Manajemen Data")
-
+        st.markdown("### Manajemen Data")
         if st.button("Hapus Semua History Transaksi"):
             delete_history_all()
             st.success("Semua history transaksi berhasil dihapus!")
