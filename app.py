@@ -183,8 +183,8 @@ def generate_template():
     return buffer
 
 # --- UI Streamlit ---
-st.set_page_config(page_title="Office Supplies Manager", page_icon="📦", layout="wide")
-st.markdown("<h1 style='color:#2C3E50; text-align:center;'>Office Supplies Manager</h1>", unsafe_allow_html=True)
+st.set_page_config(page_title="General Office Supplies", layout="wide")
+st.markdown("<h1 style='color:#2C3E50; text-align:center;'>General Office Supplies</h1>", unsafe_allow_html=True)
 
 # Session state
 if "is_admin" not in st.session_state:
@@ -253,7 +253,7 @@ with active_tab[3]:
             password = st.text_input("Password Admin", type="password")
             login_btn = st.form_submit_button("Login")
             if login_btn:
-                if password == "admin123":
+                if password == "743759":
                     st.session_state.is_admin = True
                     st.rerun()
                 else:
