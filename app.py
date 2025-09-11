@@ -11,6 +11,7 @@ c = conn.cursor()
 # Buat tabel jika belum ada
 c.execute("""CREATE TABLE IF NOT EXISTS stok (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mm TEXT,
     nama_barang TEXT UNIQUE,
     stok INTEGER
 )""")
@@ -48,27 +49,28 @@ conn.commit()
 c.execute("SELECT COUNT(*) FROM stok")
 if c.fetchone()[0] == 0:
     default_items = [
-        ("Pulpen", 50),
-        ("Buku Tulis", 30),
-        ("Stapler", 10),
-        ("Kertas A4", 100),
-        ("Spidol", 20)
+        ("MM001", "Pulpen", 50),
+        ("MM002", "Buku Tulis", 30),
+        ("MM003", "Stapler", 10),
+        ("MM004", "Kertas A4", 100),
+        ("MM005", "Spidol", 20)
     ]
-    c.executemany("INSERT INTO stok (nama_barang, stok) VALUES (?,?)", default_items)
-    for nama, qty in default_items:
+    c.executemany("INSERT INTO stok (mm, nama_barang, stok) VALUES (?,?,?)", default_items)
+    for mm, nama, qty in default_items:
         c.execute("INSERT INTO stok_log (nama_barang, jumlah, tipe, tanggal) VALUES (?,?,?,?)",
                   (nama, qty, 'masuk', datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit()
 
 # --- Fungsi pembantu database ---
 def get_stok():
-    return pd.read_sql("SELECT * FROM stok", conn)
+    return pd.read_sql("SELECT id, mm, nama_barang, stok FROM stok", conn)
 
-def add_stok(nama_barang, qty):
-    try:
-        c.execute("INSERT INTO stok (nama_barang, stok) VALUES (?,?)", (nama_barang, qty))
-    except sqlite3.IntegrityError:  # jika sudah ada, update stok
-        c.execute("UPDATE stok SET stok = stok + ? WHERE nama_barang = ?", (qty, nama_barang))
+def add_stok(nama_barang, qty, mm=None):
+    existing = c.execute("SELECT id FROM stok WHERE nama_barang=?", (nama_barang,)).fetchone()
+    if existing:
+        c.execute("UPDATE stok SET stok = stok + ? WHERE nama_barang=?", (qty, nama_barang))
+    else:
+        c.execute("INSERT INTO stok (mm, nama_barang, stok) VALUES (?,?,?)", (mm, nama_barang, qty))
     # log stok masuk
     c.execute("INSERT INTO stok_log (nama_barang, jumlah, tipe, tanggal) VALUES (?,?,?,?)",
               (nama_barang, qty, 'masuk', datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
@@ -137,7 +139,7 @@ def delete_item_barang(nama_barang):
 
 # --- Rekap stok masuk / keluar ---
 def get_rekap_stok():
-    stok_df = get_stok()[["nama_barang", "stok"]]
+    stok_df = get_stok()[["mm", "nama_barang", "stok"]]
     masuk = pd.read_sql("SELECT nama_barang, SUM(jumlah) as masuk FROM stok_log WHERE tipe='masuk' GROUP BY nama_barang", conn)
     keluar = pd.read_sql("SELECT nama_barang, SUM(jumlah) as keluar FROM stok_log WHERE tipe='keluar' GROUP BY nama_barang", conn)
 
@@ -145,7 +147,7 @@ def get_rekap_stok():
     df = pd.merge(df, keluar, on="nama_barang", how="left")
     df = df.fillna(0)
     df = df.rename(columns={"stok": "stok_tersedia"})
-    return df[["nama_barang", "masuk", "keluar", "stok_tersedia"]]
+    return df[["mm", "nama_barang", "masuk", "keluar", "stok_tersedia"]]
 
 # --- Export & Import Functions ---
 def export_stok_to_excel():
@@ -158,20 +160,22 @@ def export_stok_to_excel():
 
 def import_stok_from_excel(uploaded_file):
     df = pd.read_excel(uploaded_file)
-    if "nama_barang" not in df.columns or "stok" not in df.columns:
-        return False, "Format file salah! Harus ada kolom: 'nama_barang' dan 'stok'"
+    required_cols = {"mm", "nama_barang", "stok"}
+    if not required_cols.issubset(set(df.columns)):
+        return False, "Format file salah! Harus ada kolom: 'mm', 'nama_barang', dan 'stok'"
     for _, row in df.iterrows():
+        mm = str(row["mm"]).strip()
         nama = str(row["nama_barang"]).strip()
         try:
             qty = int(row["stok"])
         except:
             return False, f"Stok untuk {nama} tidak valid (harus angka)"
         if nama != "" and qty >= 0:
-            add_stok(nama, qty)
+            add_stok(nama, qty, mm)
     return True, "Import stok berhasil!"
 
 def generate_template():
-    df = pd.DataFrame({"nama_barang": [], "stok": []})
+    df = pd.DataFrame({"mm": [], "nama_barang": [], "stok": []})
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="Template")
@@ -281,12 +285,13 @@ with active_tab[3]:
         st.markdown("---")
         st.markdown("### Tambah Barang / Update Stok")
         with st.form("form_barang"):
+            mm = st.text_input("Kode MM")
             new_item = st.text_input("Nama Barang")
             qty = st.number_input("Jumlah", min_value=1, step=1)
             add_btn = st.form_submit_button("Tambah / Update Barang")
             if add_btn and new_item:
-                add_stok(new_item, qty)
-                st.success(f"Barang {new_item} berhasil ditambahkan / stok ditambah {qty}!")
+                add_stok(new_item, qty, mm)
+                st.success(f"Barang {new_item} ({mm}) berhasil ditambahkan / stok ditambah {qty}!")
 
         st.markdown("---")
         st.markdown("### Export & Import Data Stok")
