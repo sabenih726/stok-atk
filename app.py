@@ -333,8 +333,18 @@ with active_tab[3]:
                 st.success(f"Barang '{barang_pilihan}' berhasil dihapus dari stok!")
 
 st.markdown("""
----
-<div style='text-align:center; color:grey; font-size:13px;'>
+<style>
+.footer {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    text-align: center;
+    color: grey;
+    font-size: 13px;
+    padding: 5px;
+}
+</style>
+<div class="footer">
     Created by <b>Facility Maintenance</b>
 </div>
 """, unsafe_allow_html=True)
