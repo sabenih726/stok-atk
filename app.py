@@ -331,3 +331,10 @@ with active_tab[3]:
             if st.button(f"Hapus Barang: {barang_pilihan}"):
                 delete_item_barang(barang_pilihan)
                 st.success(f"Barang '{barang_pilihan}' berhasil dihapus dari stok!")
+
+st.markdown("""
+---
+<div style='text-align:center; color:grey; font-size:13px;'>
+    Created by <b>Facility Maintenance</b>
+</div>
+""", unsafe_allow_html=True)
