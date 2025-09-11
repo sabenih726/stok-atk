@@ -185,16 +185,13 @@ def generate_template():
 # --- UI Streamlit ---
 st.set_page_config(page_title="General Office Supplies", layout="wide")
 
-col1, col2 = st.columns([1, 8])
+col1, col2 = st.columns([1, 6])
 with col1:
-    st.image("logo.png", width=200)  # Logo
+    # pastikan file logo.png ada di folder yang sama dengan app.py
+    st.image("logo.png", width=80)  
 with col2:
     st.markdown(
-        """
-        <h1 style='color:#2C3E50; display:flex; align-items:center; height:80px; margin:0;'>
-            General Office Supplies
-        </h1>
-        """,
+        "<h1 style='color:#2C3E50; margin-top:15px;'>General Office Supplies</h1>",
         unsafe_allow_html=True
     )
 
