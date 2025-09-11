@@ -188,7 +188,7 @@ st.set_page_config(page_title="General Office Supplies", layout="wide")
 st.markdown("""
 <div style="display:flex; justify-content:center; align-items:center;">
     <img src="https://raw.githubusercontent.com/sabenih726/stok-atk/main/logo.png"
-         style="height:70px; margin-right:15px;">
+         style="height:30px; margin-right:10px;">
     <h1 style="color:#2C3E50; margin:0;">General Office Supplies</h1>
 </div>
 """, unsafe_allow_html=True)
