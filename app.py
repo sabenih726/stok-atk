@@ -187,7 +187,7 @@ st.set_page_config(page_title="General Office Supplies", layout="wide")
 
 col1, col2 = st.columns([1, 8])
 with col1:
-    st.image("logo.png", width=80)  # Logo
+    st.image("logo.png", width=200)  # Logo
 with col2:
     st.markdown(
         """
