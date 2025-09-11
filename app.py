@@ -188,7 +188,7 @@ st.set_page_config(page_title="General Office Supplies", layout="wide")
 col1, col2 = st.columns([1, 6])
 with col1:
     # pastikan file logo.png ada di folder yang sama dengan app.py
-    st.image("logo.png", width=80)  
+    st.image("logo.png", width=150)  
 with col2:
     st.markdown(
         "<h1 style='color:#2C3E50; margin-top:15px;'>General Office Supplies</h1>",
