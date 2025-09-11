@@ -184,7 +184,12 @@ def generate_template():
 
 # --- UI Streamlit ---
 st.set_page_config(page_title="General Office Supplies", layout="wide")
-st.markdown("<h1 style='color:#2C3E50; text-align:center;'>General Office Supplies</h1>", unsafe_allow_html=True)
+st.markdown("""
+<div style="display:flex; justify-content:center; align-items:center;">
+    <img src="logo.png" style="height:60px; margin-right:10px;">
+    <h1 style="color:#2C3E50; margin:0;">General Office Supplies</h1>
+</div>
+""", unsafe_allow_html=True)
 
 # Session state
 if "is_admin" not in st.session_state:
